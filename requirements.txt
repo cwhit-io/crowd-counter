@@ -1,0 +1,7 @@
+python-dotenv>=0.19.0
+requests>=2.28.1
+opencv-python>=4.6.0
+numpy>=1.23.0
+ultralytics>=8.0.0
+scikit-learn>=1.1.0
+mailtrap>=1.0.0
