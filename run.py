@@ -11,7 +11,6 @@ import zipfile
 from datetime import datetime
 import multiprocessing
 from multiprocessing import Process, Queue, cpu_count
-
 import cv2
 import numpy as np
 import requests
@@ -275,18 +274,28 @@ def process_image_worker(image_queue, result_queue, model_path, output_dir):
                 })
                 continue
 
+            # Run inference
             results = model.predict(img, conf=INFER_CONF, iou=INFER_IOU, verbose=False)
-            boxes = results[0].boxes.xyxy.cpu().numpy() if len(results[0].boxes) > 0 else np.array([])
+            boxes = (
+                results[0].boxes.xyxy.cpu().numpy()
+                if len(results[0].boxes) > 0
+                else np.array([])
+            )
 
+            # Cluster & count
             count = 0
             if len(boxes) > 0:
                 centers = np.array([(box[0] + box[2]) / 2 for box in boxes])
                 if len(centers) >= MIN_CLUSTER_SIZE:
-                    clustering = DBSCAN(eps=CLUSTER_EPS, min_samples=MIN_CLUSTER_SIZE).fit(centers.reshape(-1, 1))
+                    clustering = DBSCAN(
+                        eps=CLUSTER_EPS,
+                        min_samples=MIN_CLUSTER_SIZE
+                    ).fit(centers.reshape(-1, 1))
                     count = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
                 else:
                     count = len(centers)
 
+            # Draw boxes & count
             annotated_img = img.copy()
             for box in boxes:
                 x1, y1, x2, y2 = map(int, box[:4])
@@ -300,26 +309,46 @@ def process_image_worker(image_queue, result_queue, model_path, output_dir):
                     (0, 255, 0),
                     2
                 )
-            cv2.putText(annotated_img, f"Count: {count}", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.putText(
+                annotated_img,
+                f"Count: {count}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 255),
+                2
+            )
 
-            # NOTE: This parsing logic may not align with original filename structure,
-            # but left unchanged to preserve current behavior.
-            preset_name_fragment = os.path.basename(image_path).split('_')[1].replace('.jpg', '')
+            # --- NEW: extract both preset number and name from filename ---
+            # filename example: "preset_010_Balcony_Left_1.jpg"
+            filename = os.path.basename(image_path)
+            name_part = filename.removeprefix("preset_").rsplit(".", 1)[0]
+            preset_num, preset_name_safe = name_part.split("_", 1)
+            # Build output filename: annotated_preset_<num>_<name>.jpg
+            annotated_filename = f"{preset_name_safe}_{preset_num}.jpg"
             annotated_path = os.path.join(
                 output_dir,
                 "annotated_images",
-                f"annotated_preset_{preset_name_fragment}.jpg"
+                annotated_filename
             )
             os.makedirs(os.path.dirname(annotated_path), exist_ok=True)
-            cv2.imwrite(annotated_path, annotated_img, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-            logger.info(f"Saved annotated image to {annotated_path}, Count: {count}")
+            cv2.imwrite(
+                annotated_path,
+                annotated_img,
+                [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+            )
+            logger.info(
+                f"Saved annotated image to {annotated_path}, Count: {count}"
+            )
 
+            # Push result
             result_queue.put({
-                "preset": preset_name_fragment,
+                "preset": preset_num,
+                "name": preset_name_safe.replace("_", " "),
                 "count": count,
                 "annotated_path": annotated_path
             })
+
         except Exception as e:
             logger.error(f"Error processing {image_path}: {str(e)}")
             result_queue.put({
@@ -327,6 +356,7 @@ def process_image_worker(image_queue, result_queue, model_path, output_dir):
                 "count": 0,
                 "error": str(e)
             })
+
 
 
 # ---------------------------------------------------------------------------
