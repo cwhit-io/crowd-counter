@@ -396,19 +396,23 @@ def send_email(zip_path, run_id, total_count):
     """
     logger.info(f"Preparing email with attachment via Mailtrap: {zip_path}")
 
-    run_datetime = datetime.strptime(run_id, "%Y%m%d_%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+    run_datetime = datetime.strptime(run_id, "%Y%m%d_%H%M%S").strftime("%B %d, %Y at %I:%M %p")
 
     body = f"""
-    Dear recipient,
-    
-    Please find attached the results from the PTZ camera capture run.
-    
-    Summary:
-    - Run Date and Time: {run_datetime}
-    - Total Combined Count: {total_count}
-    
-    The attached zip file contains annotated images and a CSV file with detailed results.
-    
+    Hello,
+
+    Your PTZ camera capture has completed successfully! Here are the results:
+
+    📊 Summary:
+    • Capture completed on: {run_datetime}
+    • Total people counted: {total_count}
+
+    📁 The attached zip file includes:
+    • Annotated images showing detected people
+    • A CSV file with detailed counting results
+
+    📦 To access the files, please download the attachment and unzip it on your computer.
+
     Best regards,
     PTZ Capture System
     """
@@ -421,10 +425,17 @@ def send_email(zip_path, run_id, total_count):
         zip_content_base64 = base64.b64encode(zip_content)
         logger.info("Successfully encoded zip content to base64")
 
+        # Handle multiple email recipients separated by commas
+        email_recipients = [email.strip() for email in EMAIL_RECEIVER.split(',') if email.strip()]
+        recipient_addresses = [mt.Address(email=email) for email in email_recipients]
+        
+        # Format date for subject line
+        run_date = datetime.strptime(run_id, "%Y%m%d_%H%M%S").strftime("%B %d, %Y")
+
         mail = mt.Mail(
             sender=mt.Address(email=EMAIL_SENDER, name="PTZ Capture System"),
-            to=[mt.Address(email=EMAIL_RECEIVER)],
-            subject=f"PTZ Capture Results - Run {run_id}",
+            to=recipient_addresses,
+            subject=f"Crowd Count: {total_count} people detected on {run_date}",
             text=body,
             category="PTZ Capture Results",
             attachments=[
