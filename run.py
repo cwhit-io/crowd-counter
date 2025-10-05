@@ -433,7 +433,7 @@ def send_email(zip_path, run_id, total_count):
         run_date = datetime.strptime(run_id, "%Y%m%d_%H%M%S").strftime("%B %d, %Y")
 
         mail = mt.Mail(
-            sender=mt.Address(email=EMAIL_SENDER, name="PTZ Capture System"),
+            sender=mt.Address(email=EMAIL_SENDER, name="Blackhawk Crowd Counter"),
             to=recipient_addresses,
             subject=f"Crowd Count: {total_count} people detected on {run_date}",
             text=body,
