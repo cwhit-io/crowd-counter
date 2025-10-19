@@ -17,8 +17,8 @@ This project is designed to control a PTZ (Pan-Tilt-Zoom) camera, capture images
 
 ### Docker (Recommended)
 - Docker installed on your system
-- A trained YOLO model for person detection (e.g., `best.pt`)
 - A PTZ camera accessible over a network with VISCA protocol support
+- **Note**: YOLO model is automatically downloaded from CDN - no manual setup needed!
 
 ### Local Installation
 - Python 3.8 or higher
@@ -90,17 +90,17 @@ docker run -d --name crowd-counter \
   -v ./output:/app/output \
   cwhitio/crowd-counter:latest
 
-# The YOLO model is automatically downloaded during build
-# No need to manually copy the model file
+# The container starts with an API server automatically
+# Access the web API at http://localhost:8000
 
-# The API server starts automatically
-# Access the API at http://localhost:8000
-
-# Trigger crowd counting via API
+# Trigger crowd counting via API (Recommended)
 curl -X POST http://localhost:8000/start
 
-# Check status
+# Check process status
 curl http://localhost:8000/status
+
+# View detailed logs  
+curl http://localhost:8000/logs
 
 # Alternative: Execute directly in container
 docker exec crowd-counter python run.py
@@ -124,11 +124,12 @@ The application includes a REST API server that starts automatically on port 800
 
 ### API Usage Examples
 
+**Linux/macOS (curl):**
 ```bash
 # Start crowd counting
 curl -X POST http://localhost:8000/start
 
-# Check if process is running
+# Check process status
 curl http://localhost:8000/status
 
 # Get detailed logs
@@ -136,6 +137,21 @@ curl http://localhost:8000/logs
 
 # Health check
 curl http://localhost:8000/health
+```
+
+**Windows (PowerShell):**
+```powershell
+# Start crowd counting
+Invoke-RestMethod -Uri "http://localhost:8000/start" -Method POST
+
+# Check process status  
+Invoke-RestMethod -Uri "http://localhost:8000/status" -Method GET
+
+# Get detailed logs
+Invoke-RestMethod -Uri "http://localhost:8000/logs" -Method GET
+
+# Health check
+Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
 
 ### Using Docker Compose
 
@@ -162,8 +178,8 @@ services:
 Then run:
 ```bash
 docker-compose up -d
-# Model is automatically included - no need to copy
-docker exec crowd-counter python run.py
+# API server starts automatically - trigger via web API
+curl -X POST http://localhost:8000/start
 ```
 
 ### Running Locally
@@ -201,10 +217,11 @@ Logs are saved to `ptz_capture.log` in the project directory and also printed to
 This application is available as a Docker image on Docker Hub: `cwhitio/crowd-counter:latest`
 
 ### Image Details
-- **Base**: Python 3.10 slim with multi-stage build for optimization
-- **Size**: ~3-4GB (optimized from 13GB+ original)
-- **Includes**: All dependencies (OpenCV, Ultralytics YOLO, scikit-learn, etc.)
+- **Base**: Ultralytics/ultralytics:latest-cpu (optimized ML environment)
+- **Size**: ~2.9GB (includes PyTorch, OpenCV, YOLO pre-installed)
+- **Includes**: All dependencies + pre-trained YOLO model from CDN
 - **Architecture**: CPU-only (no GPU required)
+- **Updates**: Automatically pulls latest code from GitHub during build
 
 ### Building Locally
 ```bash
@@ -212,6 +229,14 @@ git clone https://github.com/cwhit-io/crowd-counter.git
 cd crowd-counter
 docker build -t crowd-counter .
 ```
+
+### Key Improvements
+- **🚀 Faster builds**: Uses optimized Ultralytics base image (~50% faster)
+- **📦 Self-contained**: YOLO model auto-downloaded from CDN
+- **🔄 Always current**: Pulls latest code from GitHub during build
+- **🌐 API-ready**: REST API server included for remote triggering
+- **📊 Status monitoring**: Real-time process status and logging
+- **🔧 Easy integration**: Simple HTTP endpoints for automation
 
 ## Contributing
 

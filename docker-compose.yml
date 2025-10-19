@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   crowd-counter:
-    build: .
+    image: cwhitio/crowd-counter:latest
     container_name: crowd-counter-app
     restart: unless-stopped
     
