@@ -94,7 +94,7 @@ docker run -d --name crowd-counter \
 # Access the web API at http://localhost:8000
 
 # Trigger crowd counting via API (Recommended)
-curl -X POST http://localhost:8000/start
+curl http://localhost:8000/start
 
 # Check process status
 curl http://localhost:8000/status
@@ -117,9 +117,9 @@ The application includes a REST API server that starts automatically on port 800
 
 - **GET /** - Service information and available endpoints
 - **GET /health** - Detailed health check with system status
-- **POST /start** - Start the crowd counting process
-- **POST /trigger** - Alternative endpoint to start counting
-- **POST /update** - Update application from GitHub
+- **GET /start** - Start the crowd counting process
+- **GET /trigger** - Alternative endpoint to start counting
+- **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
 
@@ -128,7 +128,7 @@ The application includes a REST API server that starts automatically on port 800
 **Linux/macOS (curl):**
 ```bash
 # Start crowd counting
-curl -X POST http://localhost:8000/start
+curl http://localhost:8000/start
 
 # Check process status
 curl http://localhost:8000/status
@@ -140,13 +140,13 @@ curl http://localhost:8000/logs
 curl http://localhost:8000/health
 
 # Update from GitHub
-curl -X POST http://localhost:8000/update
+curl http://localhost:8000/update
 ```
 
 **Windows (PowerShell):**
 ```powershell
 # Start crowd counting
-Invoke-RestMethod -Uri "http://localhost:8000/start" -Method POST
+Invoke-RestMethod -Uri "http://localhost:8000/start" -Method GET
 
 # Check process status  
 Invoke-RestMethod -Uri "http://localhost:8000/status" -Method GET
@@ -158,7 +158,7 @@ Invoke-RestMethod -Uri "http://localhost:8000/logs" -Method GET
 Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
 
 # Update from GitHub  
-Invoke-RestMethod -Uri "http://localhost:8000/update" -Method POST
+Invoke-RestMethod -Uri "http://localhost:8000/update" -Method GET
 
 ### Using Docker Compose
 
@@ -185,7 +185,7 @@ Then run:
 ```bash
 docker-compose up -d
 # API server starts automatically - trigger via web API
-curl -X POST http://localhost:8000/start
+curl http://localhost:8000/start
 ```
 
 ### Running Locally

@@ -75,11 +75,11 @@ def home():
         "status": "healthy",
         "version": "1.0",
         "endpoints": {
-            "/start": "POST - Start crowd counting",
+            "/start": "GET - Start crowd counting",
             "/status": "GET - Check process status",
             "/logs": "GET - Get recent logs",
             "/health": "GET - Health check",
-            "/update": "POST - Update from GitHub"
+            "/update": "GET - Update from GitHub"
         }
     })
 
@@ -94,7 +94,7 @@ def health():
         "uptime": time.time()
     })
 
-@app.route("/start", methods=["POST"])
+@app.route("/start", methods=["GET"])
 def start_crowd_counting():
     """Start the crowd counting process"""
     global current_process, process_status
@@ -136,12 +136,12 @@ def get_logs():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route("/trigger", methods=["POST"])
+@app.route("/trigger", methods=["GET"])
 def trigger_counting():
     """Alternative endpoint name for starting process"""
     return start_crowd_counting()
 
-@app.route("/update", methods=["POST"])
+@app.route("/update", methods=["GET"])
 def update_from_git():
     """Update the application from GitHub"""
     try:
@@ -199,9 +199,9 @@ if __name__ == "__main__":
     logger.info("Available endpoints:")
     logger.info("  GET  /         - Service info")
     logger.info("  GET  /health   - Health check")
-    logger.info("  POST /start    - Start crowd counting")
-    logger.info("  POST /trigger  - Start crowd counting (alias)")
-    logger.info("  POST /update   - Update from GitHub")
+    logger.info("  GET  /start    - Start crowd counting")
+    logger.info("  GET  /trigger  - Start crowd counting (alias)")
+    logger.info("  GET  /update   - Update from GitHub")
     logger.info("  GET  /status   - Process status")
     logger.info("  GET  /logs     - Process logs")
     
