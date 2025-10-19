@@ -37,35 +37,56 @@ def run_crowd_counter():
         
         logger.info("Starting crowd counting process...")
         
-        # Run the main script
-        result = subprocess.run(
+        # Run the main script with real-time output streaming
+        current_process = subprocess.Popen(
             [sys.executable, "run.py"],
             cwd="/app",
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=3600  # 1 hour timeout
+            bufsize=1,  # Line buffered
+            universal_newlines=True
         )
         
-        process_output.append(f"Exit code: {result.returncode}")
-        if result.stdout:
-            process_output.append(f"STDOUT:\n{result.stdout}")
-        if result.stderr:
-            process_output.append(f"STDERR:\n{result.stderr}")
+        # Stream output in real-time
+        output_lines = []
+        while True:
+            output = current_process.stdout.readline()
+            if output == '' and current_process.poll() is not None:
+                break
+            if output:
+                output_line = output.strip()
+                print(f"[CROWD-COUNTER] {output_line}")  # Print to Docker terminal
+                logger.info(f"run.py: {output_line}")     # Also log it
+                output_lines.append(output_line)
+        
+        # Wait for process to complete and get return code
+        return_code = current_process.wait()
+        
+        # Store the output for API access
+        process_output = output_lines
+        process_output.append(f"Exit code: {return_code}")
             
-        if result.returncode == 0:
+        if return_code == 0:
             process_status = "completed"
             logger.info("Crowd counting completed successfully")
         else:
             process_status = "failed"
-            logger.error(f"Crowd counting failed with code {result.returncode}")
+            logger.error(f"Crowd counting failed with code {return_code}")
             
     except subprocess.TimeoutExpired:
+        if current_process:
+            current_process.kill()
         process_status = "timeout"
         logger.error("Crowd counting process timed out")
     except Exception as e:
+        if current_process:
+            current_process.kill()
         process_status = "error"
         process_output.append(f"Error: {str(e)}")
         logger.error(f"Error running crowd counter: {e}")
+    finally:
+        current_process = None
 
 @app.route("/")
 def home():
