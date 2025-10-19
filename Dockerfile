@@ -57,12 +57,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 
 # Copy application files
-COPY run.py .
-COPY preset_config.json .
 COPY .env* ./
-COPY update.sh .
-COPY update.py .
-COPY api.py .
 
 # Make scripts executable
 RUN chmod +x update.sh update.py api.py
