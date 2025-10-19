@@ -78,7 +78,8 @@ def home():
             "/start": "POST - Start crowd counting",
             "/status": "GET - Check process status",
             "/logs": "GET - Get recent logs",
-            "/health": "GET - Health check"
+            "/health": "GET - Health check",
+            "/update": "POST - Update from GitHub"
         }
     })
 
@@ -140,6 +141,56 @@ def trigger_counting():
     """Alternative endpoint name for starting process"""
     return start_crowd_counting()
 
+@app.route("/update", methods=["POST"])
+def update_from_git():
+    """Update the application from GitHub"""
+    try:
+        logger.info("Starting Git update process...")
+        
+        # Run the update script
+        result = subprocess.run(
+            [sys.executable, "update.py"],
+            cwd="/app",
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            logger.info("Git update completed successfully")
+            return jsonify({
+                "message": "Update completed successfully",
+                "status": "success",
+                "output": result.stdout,
+                "timestamp": datetime.now().isoformat(),
+                "note": "Restart container to apply all changes"
+            })
+        else:
+            logger.error(f"Git update failed with code {result.returncode}")
+            return jsonify({
+                "error": "Update failed",
+                "status": "failed",
+                "exit_code": result.returncode,
+                "stderr": result.stderr,
+                "stdout": result.stdout,
+                "timestamp": datetime.now().isoformat()
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        logger.error("Git update process timed out")
+        return jsonify({
+            "error": "Update process timed out",
+            "status": "timeout",
+            "timestamp": datetime.now().isoformat()
+        }), 408
+    except Exception as e:
+        logger.error(f"Error during Git update: {e}")
+        return jsonify({
+            "error": f"Update failed: {str(e)}",
+            "status": "error",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8000"))
     debug = os.getenv("API_DEBUG", "false").lower() == "true"
@@ -150,6 +201,7 @@ if __name__ == "__main__":
     logger.info("  GET  /health   - Health check")
     logger.info("  POST /start    - Start crowd counting")
     logger.info("  POST /trigger  - Start crowd counting (alias)")
+    logger.info("  POST /update   - Update from GitHub")
     logger.info("  GET  /status   - Process status")
     logger.info("  GET  /logs     - Process logs")
     

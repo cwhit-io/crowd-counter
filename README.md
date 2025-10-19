@@ -119,6 +119,7 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /health** - Detailed health check with system status
 - **POST /start** - Start the crowd counting process
 - **POST /trigger** - Alternative endpoint to start counting
+- **POST /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
 
@@ -137,6 +138,9 @@ curl http://localhost:8000/logs
 
 # Health check
 curl http://localhost:8000/health
+
+# Update from GitHub
+curl -X POST http://localhost:8000/update
 ```
 
 **Windows (PowerShell):**
@@ -152,6 +156,9 @@ Invoke-RestMethod -Uri "http://localhost:8000/logs" -Method GET
 
 # Health check
 Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
+
+# Update from GitHub  
+Invoke-RestMethod -Uri "http://localhost:8000/update" -Method POST
 
 ### Using Docker Compose
 
