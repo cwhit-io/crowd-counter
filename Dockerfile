@@ -1,66 +1,26 @@
-# Multi-stage build for minimal final image
-FROM python:3.10-slim as builder
+# Use Ultralytics CPU image as base (includes PyTorch, OpenCV, YOLO, etc.)
+FROM ultralytics/ultralytics:latest-cpu
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Copy requirements and install dependencies
-COPY requirements.txt .
-
-# Install CPU-only PyTorch first (much smaller than CUDA version)
-RUN pip install --no-cache-dir \
-    torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install opencv-python-headless (smaller than opencv-python)
-RUN pip install --no-cache-dir opencv-python-headless>=4.6.0
-
-# Install other dependencies (excluding opencv-python since we have headless)
-RUN pip install --no-cache-dir \
-    python-dotenv>=0.19.0 \
-    requests>=2.28.1 \
-    numpy>=1.23.0 \
-    ultralytics>=8.0.0 \
-    scikit-learn>=1.1.0 \
-    mailtrap>=1.0.0
-
-# Final stage - minimal runtime image
-FROM python:3.10-slim
-
-# Install only runtime dependencies
+# Install additional system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
-    libglib2.0-0 \
-    libgomp1 \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libfontconfig1 \
-    libice6 \
-    libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install additional Python dependencies not in base image
+RUN pip install --no-cache-dir \
+    python-dotenv>=0.19.0 \
+    mailtrap>=1.0.0 \
+    flask>=2.3.0
 
 # Set working directory
 WORKDIR /app
 
-# Copy application files
-COPY .env* ./
-
-# Make scripts executable
-RUN chmod +x update.sh update.py api.py
+# Clone the latest code from GitHub
+RUN git clone https://github.com/cwhit-io/crowd-counter.git /tmp/repo && \
+    cp -r /tmp/repo/* /app/ && \
+    rm -rf /tmp/repo && \
+    chmod +x /app/*.sh /app/*.py 2>/dev/null || true
 
 # Create directories for output and models
 RUN mkdir -p /app/output /app/data /app/models
