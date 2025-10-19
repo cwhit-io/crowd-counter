@@ -14,9 +14,16 @@ This project is designed to control a PTZ (Pan-Tilt-Zoom) camera, capture images
 
 ## Requirements
 
+### Docker (Recommended)
+- Docker installed on your system
+- A trained YOLO model for person detection (e.g., `best.pt`)
+- A PTZ camera accessible over a network with VISCA protocol support
+
+### Local Installation
 - Python 3.8 or higher
 - A PTZ camera accessible over a network with VISCA protocol support
 - A trained YOLO model for person detection (e.g., `best.pt`)
+- Install dependencies: `pip install -r requirements.txt`
 
 ## Configuration
 
@@ -63,10 +70,70 @@ Presets are loaded from a JSON file specified by `PRESET_CONFIG_FILE`. The file 
 
 ## Usage
 
+### Running with Docker (Recommended)
+
+The easiest way to run this application is using Docker:
+
+```bash
+# Pull the image from Docker Hub
+docker pull cwhitio/crowd-counter:latest
+
+# Run with environment variables
+docker run -d --name crowd-counter \
+  -e CAMERA_IP=192.168.1.100 \
+  -e CAMERA_USER=admin \
+  -e CAMERA_PASS=password \
+  -e EMAIL_RECEIVER=your_email@example.com \
+  -e EMAIL_API=your_mailtrap_api_token \
+  -v ./models:/app/models \
+  -v ./output:/app/output \
+  cwhitio/crowd-counter:latest
+
+# Copy your trained YOLO model to the container
+docker cp models/best.pt crowd-counter:/app/models/
+
+# Execute the crowd counting script
+docker exec crowd-counter python run.py
+
+# Update the application from GitHub
+docker exec crowd-counter python update.py
+```
+
+### Using Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  crowd-counter:
+    image: cwhitio/crowd-counter:latest
+    container_name: crowd-counter
+    environment:
+      - CAMERA_IP=192.168.1.100
+      - CAMERA_USER=admin
+      - CAMERA_PASS=password
+      - EMAIL_RECEIVER=your_email@example.com
+      - EMAIL_API=your_mailtrap_api_token
+    volumes:
+      - ./models:/app/models
+      - ./output:/app/output
+      - ./data:/app/data
+```
+
+Then run:
+```bash
+docker-compose up -d
+docker cp models/best.pt crowd-counter:/app/models/
+docker exec crowd-counter python run.py
+```
+
+### Running Locally
+
 Run the script to start capturing and processing images from the camera presets:
 
 ```bash
-python ptz_capture.py
+python run.py
 ```
 
 - The script will create an output directory with a timestamp (e.g., `output/run_YYYYMMDD_HHMMSS`).
@@ -90,6 +157,23 @@ Logs are saved to `ptz_capture.log` in the project directory and also printed to
 - **Image Capture Failures**: Verify camera credentials and network connectivity.
 - **Email Sending Errors**: Check Mailtrap API token and recipient email configuration.
 - **Processing Errors**: Ensure the YOLO model path is correct and the model is trained for person detection.
+
+## Docker
+
+This application is available as a Docker image on Docker Hub: `cwhitio/crowd-counter:latest`
+
+### Image Details
+- **Base**: Python 3.10 slim with multi-stage build for optimization
+- **Size**: ~3-4GB (optimized from 13GB+ original)
+- **Includes**: All dependencies (OpenCV, Ultralytics YOLO, scikit-learn, etc.)
+- **Architecture**: CPU-only (no GPU required)
+
+### Building Locally
+```bash
+git clone https://github.com/cwhit-io/crowd-counter.git
+cd crowd-counter
+docker build -t crowd-counter .
+```
 
 ## Contributing
 

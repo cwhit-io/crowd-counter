@@ -35,6 +35,7 @@ FROM python:3.10-slim
 
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
+    git \
     libglib2.0-0 \
     libgomp1 \
     libgl1 \
@@ -58,6 +59,11 @@ WORKDIR /app
 COPY run.py .
 COPY preset_config.json .
 COPY .env* ./
+COPY update.sh .
+COPY update.py .
+
+# Make scripts executable
+RUN chmod +x update.sh update.py
 
 # Create directories for output
 RUN mkdir -p /app/output /app/data
@@ -68,8 +74,8 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # PTZOptics Camera Configuration
 ENV CAMERA_IP=192.168.1.100
-ENV CAMERA_USER=username
-ENV CAMERA_PASS=password
+ENV CAMERA_USER=admin
+ENV CAMERA_PASS=admin
 
 # YOLO Model Configuration
 ENV MODEL_PATH=models/best.pt

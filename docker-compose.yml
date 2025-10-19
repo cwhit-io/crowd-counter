@@ -36,7 +36,7 @@ services:
     # Volumes to persist data and access host files
     volumes:
       - ./data:/app/data
-      - ./output:/app/output
+      - crowd-counter-output:/app/output  # Named volume for persistent storage
       - ./models:/app/models
     
     # Network configuration if needed
@@ -46,6 +46,11 @@ services:
     # Port mapping if your app serves a web interface
     # ports:
     #   - "8000:8000"
+
+# Named volumes for persistent data
+volumes:
+  crowd-counter-output:
+    driver: local
 
 # networks:
 #   camera_network:
