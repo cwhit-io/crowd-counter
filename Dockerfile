@@ -37,6 +37,14 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgomp1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libfontconfig1 \
+    libice6 \
+    libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder
@@ -57,5 +65,5 @@ RUN mkdir -p /app/output /app/data
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Default command
-CMD ["python", "--version"]
+# Keep container running for testing
+CMD ["tail", "-f", "/dev/null"]
