@@ -90,6 +90,31 @@ class UpdateManager:
         else:
             print("⚠️ Warning: requirements.txt not found, skipping pip install")
     
+    def download_latest_model(self):
+        """Download the latest YOLO model from CDN"""
+        print("🤖 Downloading latest YOLO model...")
+        model_url = "https://cwhit-io.b-cdn.net/best.pt"
+        model_path = f"{self.app_dir}/models/best.pt"
+        
+        try:
+            # Create models directory if it doesn't exist
+            os.makedirs(f"{self.app_dir}/models", exist_ok=True)
+            
+            # Download the model
+            result = self.run_command(f"curl -L -o {model_path} {model_url}")
+            
+            # Check if download was successful
+            if os.path.exists(model_path):
+                # Get file size for confirmation
+                size_result = self.run_command(f"du -h {model_path} | cut -f1", check=False)
+                file_size = size_result.stdout.strip() if size_result.stdout else "unknown size"
+                print(f"✅ Model downloaded successfully ({file_size})")
+            else:
+                print("❌ Model download failed - file not found")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to download model: {e}")
+            print("   The existing model will continue to be used")
+    
     def show_changes(self):
         """Show recent changes"""
         print("📋 Recent changes:")
@@ -113,6 +138,7 @@ class UpdateManager:
             print(f"🔄 Updates available. Updating from {local_commit[:8]} to {remote_commit[:8]}...")
             self.apply_updates()
             self.install_requirements()
+            self.download_latest_model()
             self.show_changes()
             
             print("✅ Update completed successfully!")
