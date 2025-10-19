@@ -4,6 +4,7 @@ This project is designed to control a PTZ (Pan-Tilt-Zoom) camera, capture images
 
 ## Features
 
+- **REST API**: Simple HTTP API to trigger crowd counting and monitor status
 - **Camera Control**: Communicates with a PTZ camera using VISCA commands over a socket connection.
 - **Image Capture**: Captures images from specified preset positions via HTTP requests.
 - **Object Detection**: Uses a YOLO model to detect people in captured images.
@@ -89,15 +90,52 @@ docker run -d --name crowd-counter \
   -v ./output:/app/output \
   cwhitio/crowd-counter:latest
 
-# Copy your trained YOLO model to the container
-docker cp models/best.pt crowd-counter:/app/models/
+# The YOLO model is automatically downloaded during build
+# No need to manually copy the model file
 
-# Execute the crowd counting script
+# The API server starts automatically
+# Access the API at http://localhost:8000
+
+# Trigger crowd counting via API
+curl -X POST http://localhost:8000/start
+
+# Check status
+curl http://localhost:8000/status
+
+# Alternative: Execute directly in container
 docker exec crowd-counter python run.py
 
 # Update the application from GitHub
 docker exec crowd-counter python update.py
 ```
+
+## API Endpoints
+
+The application includes a REST API server that starts automatically on port 8000:
+
+### Available Endpoints
+
+- **GET /** - Service information and available endpoints
+- **GET /health** - Detailed health check with system status
+- **POST /start** - Start the crowd counting process
+- **POST /trigger** - Alternative endpoint to start counting
+- **GET /status** - Check current process status
+- **GET /logs** - Get process logs and output
+
+### API Usage Examples
+
+```bash
+# Start crowd counting
+curl -X POST http://localhost:8000/start
+
+# Check if process is running
+curl http://localhost:8000/status
+
+# Get detailed logs
+curl http://localhost:8000/logs
+
+# Health check
+curl http://localhost:8000/health
 
 ### Using Docker Compose
 
@@ -124,7 +162,7 @@ services:
 Then run:
 ```bash
 docker-compose up -d
-docker cp models/best.pt crowd-counter:/app/models/
+# Model is automatically included - no need to copy
 docker exec crowd-counter python run.py
 ```
 

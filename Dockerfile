@@ -36,6 +36,7 @@ FROM python:3.10-slim
 # Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
     git \
+    curl \
     libglib2.0-0 \
     libgomp1 \
     libgl1 \
@@ -61,12 +62,17 @@ COPY preset_config.json .
 COPY .env* ./
 COPY update.sh .
 COPY update.py .
+COPY api.py .
 
 # Make scripts executable
-RUN chmod +x update.sh update.py
+RUN chmod +x update.sh update.py api.py
 
-# Create directories for output
-RUN mkdir -p /app/output /app/data
+# Create directories for output and models
+RUN mkdir -p /app/output /app/data /app/models
+
+# Download the pre-trained YOLO model from CDN
+RUN curl -L -o /app/models/best.pt https://cwhit-io.b-cdn.net/best.pt && \
+    echo "✅ Downloaded YOLO model ($(du -h /app/models/best.pt | cut -f1))"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -93,5 +99,12 @@ ENV EMAIL_SENDER=no-reply@example.org
 ENV EMAIL_RECEIVER=user@example.org
 ENV EMAIL_API=your_api_key_here
 
-# Keep container running for testing
-CMD ["tail", "-f", "/dev/null"]
+# API Configuration
+ENV API_PORT=8000
+ENV API_DEBUG=false
+
+# Expose API port
+EXPOSE 8000
+
+# Start API server by default
+CMD ["python", "api.py"]

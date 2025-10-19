@@ -28,6 +28,10 @@ services:
       - EMAIL_SENDER=no-reply@example.org
       - EMAIL_RECEIVER=user@example.org
       - EMAIL_API=your_api_key_here
+      
+      # API Configuration
+      - API_PORT=8000
+      - API_DEBUG=false
     
     # Alternative: Load from .env file (uncomment to use)
     env_file:
@@ -43,9 +47,9 @@ services:
     # networks:
     #   - camera_network
     
-    # Port mapping if your app serves a web interface
-    # ports:
-    #   - "8000:8000"
+# Port mapping for API
+    ports:
+      - "8000:8000"
 
 # Named volumes for persistent data
 volumes:
