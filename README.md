@@ -179,7 +179,6 @@ services:
     volumes:
       - ./models:/app/models
       - ./output:/app/output
-      - ./data:/app/data
 ```
 
 Then run:
