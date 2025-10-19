@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  crowd-counter:
+    build: .
+    container_name: crowd-counter-app
+    restart: unless-stopped
+    
+    # Environment variables - override defaults from Dockerfile
+    environment:
+      # PTZOptics Camera Configuration
+      - CAMERA_IP=192.168.1.100
+      - CAMERA_USER=username  
+      - CAMERA_PASS=password
+      
+      # YOLO Model Configuration
+      - MODEL_PATH=models/best.pt
+      - INFER_CONF=0.10
+      - INFER_IOU=0.30
+      - CLUSTER_EPS=15
+      - MIN_CLUSTER_SIZE=1000
+      
+      # Processing Configuration
+      - BATCH_SIZE=4
+      - NUM_WORKERS=4
+      
+      # Email Configuration
+      - EMAIL_SENDER=no-reply@example.org
+      - EMAIL_RECEIVER=user@example.org
+      - EMAIL_API=your_api_key_here
+    
+    # Alternative: Load from .env file (uncomment to use)
+    env_file:
+      - .env
+    
+    # Volumes to persist data and access host files
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./models:/app/models
+    
+    # Network configuration if needed
+    # networks:
+    #   - camera_network
+    
+    # Port mapping if your app serves a web interface
+    # ports:
+    #   - "8000:8000"
+
+# networks:
+#   camera_network:
+#     driver: bridge

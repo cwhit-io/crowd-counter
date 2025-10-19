@@ -57,6 +57,7 @@ WORKDIR /app
 # Copy application files
 COPY run.py .
 COPY preset_config.json .
+COPY .env* ./
 
 # Create directories for output
 RUN mkdir -p /app/output /app/data
@@ -64,6 +65,27 @@ RUN mkdir -p /app/output /app/data
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+
+# PTZOptics Camera Configuration
+ENV CAMERA_IP=192.168.1.100
+ENV CAMERA_USER=username
+ENV CAMERA_PASS=password
+
+# YOLO Model Configuration
+ENV MODEL_PATH=models/best.pt
+ENV INFER_CONF=0.10
+ENV INFER_IOU=0.30
+ENV CLUSTER_EPS=15
+ENV MIN_CLUSTER_SIZE=1000
+
+# Processing Configuration
+ENV BATCH_SIZE=4
+ENV NUM_WORKERS=4
+
+# Email Configuration
+ENV EMAIL_SENDER=no-reply@example.org
+ENV EMAIL_RECEIVER=user@example.org
+ENV EMAIL_API=your_api_key_here
 
 # Keep container running for testing
 CMD ["tail", "-f", "/dev/null"]
