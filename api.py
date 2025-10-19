@@ -168,32 +168,48 @@ def update_from_git():
     try:
         logger.info("Starting Git update process...")
         
-        # Run the update script
-        result = subprocess.run(
+        # Run the update script with real-time output streaming
+        process = subprocess.Popen(
             [sys.executable, "update.py"],
             cwd="/app",
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=300  # 5 minute timeout
+            bufsize=1,
+            universal_newlines=True
         )
         
-        if result.returncode == 0:
+        # Stream output in real-time
+        output_lines = []
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                output_line = output.strip()
+                print(f"[UPDATE] {output_line}")  # Print to Docker terminal
+                logger.info(f"update.py: {output_line}")  # Also log it
+                output_lines.append(output_line)
+        
+        # Wait for process to complete
+        return_code = process.wait()
+        
+        if return_code == 0:
             logger.info("Git update completed successfully")
             return jsonify({
-                "message": "Update completed successfully",
+                "message": "Update completed successfully (includes git pull + pip install)",
                 "status": "success",
-                "output": result.stdout,
+                "output": output_lines,
                 "timestamp": datetime.now().isoformat(),
-                "note": "Restart container to apply all changes"
+                "note": "Code updated and requirements installed - restart container if needed"
             })
         else:
-            logger.error(f"Git update failed with code {result.returncode}")
+            logger.error(f"Git update failed with code {return_code}")
             return jsonify({
                 "error": "Update failed",
                 "status": "failed",
-                "exit_code": result.returncode,
-                "stderr": result.stderr,
-                "stdout": result.stdout,
+                "exit_code": return_code,
+                "output": output_lines,
                 "timestamp": datetime.now().isoformat()
             }), 500
             

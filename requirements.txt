@@ -1,7 +1,8 @@
 # Most dependencies are included in ultralytics/ultralytics:latest-cpu base image
-# Including: torch, torchvision, opencv-python, numpy, ultralytics, scikit-learn, requests
+# Including: torch, torchvision, opencv-python, numpy, ultralytics, requests
 
 # Additional dependencies needed for this application
 python-dotenv>=0.19.0
 mailtrap>=1.0.0
 flask>=2.3.0
+scikit-learn>=1.0.0

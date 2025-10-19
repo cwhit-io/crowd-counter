@@ -74,6 +74,21 @@ class UpdateManager:
         
         # Apply updates
         self.run_command(f"git reset --hard origin/{self.branch}")
+        
+    def install_requirements(self):
+        """Install/update Python requirements"""
+        print("📦 Installing/updating Python requirements...")
+        requirements_file = f"{self.app_dir}/requirements.txt"
+        
+        if os.path.exists(requirements_file):
+            try:
+                self.run_command(f"pip install --no-cache-dir -r {requirements_file}")
+                print("✅ Requirements installed successfully!")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to install requirements: {e}")
+                print("   You may need to restart the container for all dependencies")
+        else:
+            print("⚠️ Warning: requirements.txt not found, skipping pip install")
     
     def show_changes(self):
         """Show recent changes"""
@@ -97,6 +112,7 @@ class UpdateManager:
             
             print(f"🔄 Updates available. Updating from {local_commit[:8]} to {remote_commit[:8]}...")
             self.apply_updates()
+            self.install_requirements()
             self.show_changes()
             
             print("✅ Update completed successfully!")

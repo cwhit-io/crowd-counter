@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir \
     python-dotenv>=0.19.0 \
     mailtrap>=1.0.0 \
-    flask>=2.3.0
+    flask>=2.3.0 \
+    scikit-learn>=1.0.0
 
 # Set working directory
 WORKDIR /app
