@@ -103,7 +103,7 @@ def home():
             "/logs": "GET - Get recent logs",
             "/health": "GET - Health check",
             "/update": "GET - Update from GitHub",
-            "/email": "POST - Send email with custom receiver",
+            "/email": "POST - Send email with custom receiver(s) or default from .env",
             "/db/update": "POST - Update database table"
         }
     })
@@ -168,23 +168,38 @@ def trigger_counting():
 
 @app.route("/email", methods=["POST"])
 def send_custom_email():
-    """Send email with custom receiver"""
+    """Send email with custom receiver(s) or default from environment"""
     try:
         data = request.get_json()
         
-        if not data or 'receiver' not in data:
+        # Get receivers - either from API request or environment default
+        receivers = []
+        if data and 'receiver' in data:
+            # API can pass single email or comma-separated list
+            receiver_input = data['receiver']
+            if isinstance(receiver_input, str):
+                # Split by comma and clean up whitespace
+                receivers = [email.strip() for email in receiver_input.split(',') if email.strip()]
+            elif isinstance(receiver_input, list):
+                receivers = receiver_input
+        else:
+            # Use default from environment
+            default_receiver = os.getenv("EMAIL_RECEIVER", "")
+            if default_receiver:
+                receivers = [email.strip() for email in default_receiver.split(',') if email.strip()]
+        
+        if not receivers:
             return jsonify({
-                "error": "Missing 'receiver' field in request body",
+                "error": "No receivers specified. Set EMAIL_RECEIVER in environment or pass 'receiver' in request body",
                 "example": {
-                    "receiver": "user@example.com",
+                    "receiver": "user@example.com,user2@example.com",
                     "subject": "Custom Subject (optional)",
                     "message": "Custom message (optional)"
                 }
             }), 400
         
-        receiver = data['receiver']
-        subject = data.get('subject', 'Crowd Counter Notification')
-        message = data.get('message', 'This is a notification from the Crowd Counter API.')
+        subject = data.get('subject', 'Crowd Counter Notification') if data else 'Crowd Counter Notification'
+        message = data.get('message', 'This is a notification from the Crowd Counter API.') if data else 'This is a notification from the Crowd Counter API.'
         
         # Get email configuration from environment
         email_sender = os.getenv("EMAIL_SENDER", "no-reply@example.org")
@@ -196,10 +211,13 @@ def send_custom_email():
                 "note": "Set EMAIL_API environment variable"
             }), 500
         
+        # Convert receivers to Mailtrap Address objects
+        recipient_addresses = [mt.Address(email=email) for email in receivers]
+        
         # Send email via Mailtrap
         mail = mt.Mail(
             sender=mt.Address(email=email_sender, name="Crowd Counter API"),
-            to=[mt.Address(email=receiver)],
+            to=recipient_addresses,
             subject=subject,
             text=message,
             category="API Notification"
@@ -208,9 +226,10 @@ def send_custom_email():
         client = mt.MailtrapClient(token=email_api)
         response = client.send(mail)
         
-        logger.info(f"Email sent successfully to {receiver}")
+        logger.info(f"Email sent successfully to {len(receivers)} recipient(s): {', '.join(receivers)}")
         return jsonify({
-            "message": f"Email sent successfully to {receiver}",
+            "message": f"Email sent successfully to {len(receivers)} recipient(s)",
+            "recipients": receivers,
             "subject": subject,
             "timestamp": datetime.now().isoformat()
         })
