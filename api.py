@@ -307,7 +307,7 @@ def update_from_git():
 
 @app.route("/db/update", methods=["POST"])
 def update_database():
-    """Update database table with provided data"""
+    """Update service attendance table with crowd count data"""
     try:
         data = request.get_json()
         
@@ -315,22 +315,49 @@ def update_database():
             return jsonify({
                 "error": "Missing request body",
                 "example": {
-                    "table": "crowd_counts",
-                    "data": {
-                        "preset_id": 1,
-                        "count": 25,
-                        "timestamp": "2025-11-09T10:00:00"
-                    }
+                    "service": "9am",  # or "1045am"
+                    "count": 150,
+                    "weather": "sunny",  # optional
+                    "temp": 72         # optional
                 }
             }), 400
         
-        table_name = data.get('table', 'crowd_counts')
-        record_data = data.get('data', {})
+        # Extract parameters
+        service = data.get('service')
+        count = data.get('count')
+        weather = data.get('weather')
+        temp = data.get('temp')
         
-        if not record_data:
+        # Validate required parameters
+        if not service or count is None:
             return jsonify({
-                "error": "Missing 'data' field in request body"
+                "error": "Missing required parameters: 'service' and 'count' are required",
+                "example": {
+                    "service": "9am",
+                    "count": 150
+                }
             }), 400
+        
+        # Validate service type
+        if service not in ['9am', '1045am']:
+            return jsonify({
+                "error": "Invalid service. Must be '9am' or '1045am'",
+                "provided": service
+            }), 400
+        
+        # Validate count is a number
+        try:
+            count = int(count)
+            if count < 0:
+                raise ValueError("Count must be non-negative")
+        except (ValueError, TypeError):
+            return jsonify({
+                "error": "Count must be a non-negative integer",
+                "provided": count
+            }), 400
+        
+        # Get current date
+        current_date = datetime.now().strftime('%Y-%m-%d')
         
         # Get database configuration from environment
         db_path = os.getenv("DATABASE_PATH", "/app/crowd_counter.db")
@@ -339,45 +366,69 @@ def update_database():
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Create table if it doesn't exist (basic schema)
-        cursor.execute(f'''
-            CREATE TABLE IF NOT EXISTS {table_name} (
+        # Create table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS service_counts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                preset_id INTEGER,
-                count INTEGER,
-                timestamp TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                date TEXT NOT NULL,
+                weather TEXT,
+                temp REAL,
+                service_9am_sanctuary INTEGER,
+                service_1045am_sanctuary INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date)
             )
         ''')
         
-        # Prepare insert statement
-        columns = ', '.join(record_data.keys())
-        placeholders = ', '.join(['?' for _ in record_data])
-        values = list(record_data.values())
+        # Check if record for today exists
+        cursor.execute('SELECT id FROM service_counts WHERE date = ?', (current_date,))
+        existing_record = cursor.fetchone()
         
-        # Add created_at if not provided
-        if 'created_at' not in record_data:
-            columns += ', created_at'
-            placeholders += ', ?'
-            values.append(datetime.now().isoformat())
-        
-        cursor.execute(f'''
-            INSERT INTO {table_name} ({columns})
-            VALUES ({placeholders})
-        ''', values)
-        
-        # Get the ID of the inserted record
-        record_id = cursor.lastrowid
+        if existing_record:
+            # Update existing record
+            if service == '9am':
+                cursor.execute('''
+                    UPDATE service_counts 
+                    SET service_9am_sanctuary = ?, weather = ?, temp = ?
+                    WHERE date = ?
+                ''', (count, weather, temp, current_date))
+            else:  # 1045am
+                cursor.execute('''
+                    UPDATE service_counts 
+                    SET service_1045am_sanctuary = ?, weather = ?, temp = ?
+                    WHERE date = ?
+                ''', (count, weather, temp, current_date))
+            
+            record_id = existing_record[0]
+            action = "updated"
+        else:
+            # Insert new record
+            if service == '9am':
+                cursor.execute('''
+                    INSERT INTO service_counts (date, weather, temp, service_9am_sanctuary)
+                    VALUES (?, ?, ?, ?)
+                ''', (current_date, weather, temp, count))
+            else:  # 1045am
+                cursor.execute('''
+                    INSERT INTO service_counts (date, weather, temp, service_1045am_sanctuary)
+                    VALUES (?, ?, ?, ?)
+                ''', (current_date, weather, temp, count))
+            
+            record_id = cursor.lastrowid
+            action = "inserted"
         
         conn.commit()
         conn.close()
         
-        logger.info(f"Database record inserted into {table_name} with ID {record_id}")
+        logger.info(f"Service count {action} for {service} service: {count} attendees on {current_date}")
         return jsonify({
-            "message": f"Record inserted successfully into {table_name}",
+            "message": f"Service count {action} successfully",
             "record_id": record_id,
-            "table": table_name,
-            "data": record_data,
+            "date": current_date,
+            "service": service,
+            "count": count,
+            "weather": weather,
+            "temp": temp,
             "timestamp": datetime.now().isoformat()
         })
         

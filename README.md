@@ -121,7 +121,7 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
 - **POST /email** - Send crowd counter notification email to specified receiver(s)
-- **POST /db/update** - Update database table with data
+- **POST /db/update** - Update service attendance table with crowd count data
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
@@ -158,7 +158,7 @@ curl -X POST http://localhost:8000/email \
 # Update database
 curl -X POST http://localhost:8000/db/update \
   -H "Content-Type: application/json" \
-  -d '{"table": "crowd_counts", "data": {"preset_id": 1, "count": 25}}'
+  -d '{"service": "9am", "count": 150, "weather": "sunny", "temp": 72}'
 ```
 
 **Windows (PowerShell):**
@@ -189,11 +189,10 @@ Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
 
 # Update database
 Invoke-RestMethod -Uri "http://localhost:8000/db/update" -Method POST -Body (@{
-    table = "crowd_counts"
-    data = @{
-        preset_id = 1
-        count = 25
-    }
+    service = "9am"
+    count = 150
+    weather = "sunny"
+    temp = 72
 } | ConvertTo-Json) -ContentType "application/json"
 
 ### Using Docker Compose
@@ -236,12 +235,25 @@ python run.py
 - Raw images, annotated images, and a CSV file with counts will be generated.
 - Results are zipped and emailed to the configured recipient.
 
-## Output Structure
+## Database Schema
 
-- `output/run_YYYYMMDD_HHMMSS/`
-  - `annotated_images/`: Images with detection annotations
-  - `results/count_results.csv`: CSV file with preset numbers, names, and people counts
-  - `ptz_capture_results_YYYYMMDD_HHMMSS.zip`: Zipped results sent via email
+The application uses SQLite to store service attendance data. The `service_counts` table has the following structure:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Primary key (auto-increment) |
+| `date` | TEXT | Date of the service (YYYY-MM-DD format) |
+| `weather` | TEXT | Weather conditions (optional) |
+| `temp` | REAL | Temperature (optional) |
+| `service_9am_sanctuary` | INTEGER | Attendance count for 9:00 AM service |
+| `service_1045am_sanctuary` | INTEGER | Attendance count for 10:45 AM service |
+| `created_at` | TEXT | Record creation timestamp |
+
+**Notes:**
+- Each date can only have one record (UNIQUE constraint on date)
+- If a record for the current date doesn't exist, it will be created
+- If a record exists, it will be updated with the new service count
+- Weather and temperature are optional and will update existing records
 
 ## Logging
 
