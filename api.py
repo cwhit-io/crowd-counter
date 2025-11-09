@@ -10,9 +10,11 @@ import json
 import subprocess
 import threading
 import time
+import sqlite3
 from datetime import datetime
 from flask import Flask, jsonify, request
 import logging
+import mailtrap as mt
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -100,7 +102,9 @@ def home():
             "/status": "GET - Check process status",
             "/logs": "GET - Get recent logs",
             "/health": "GET - Health check",
-            "/update": "GET - Update from GitHub"
+            "/update": "GET - Update from GitHub",
+            "/email": "POST - Send email with custom receiver",
+            "/db/update": "POST - Update database table"
         }
     })
 
@@ -161,6 +165,62 @@ def get_logs():
 def trigger_counting():
     """Alternative endpoint name for starting process"""
     return start_crowd_counting()
+
+@app.route("/email", methods=["POST"])
+def send_custom_email():
+    """Send email with custom receiver"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'receiver' not in data:
+            return jsonify({
+                "error": "Missing 'receiver' field in request body",
+                "example": {
+                    "receiver": "user@example.com",
+                    "subject": "Custom Subject (optional)",
+                    "message": "Custom message (optional)"
+                }
+            }), 400
+        
+        receiver = data['receiver']
+        subject = data.get('subject', 'Crowd Counter Notification')
+        message = data.get('message', 'This is a notification from the Crowd Counter API.')
+        
+        # Get email configuration from environment
+        email_sender = os.getenv("EMAIL_SENDER", "no-reply@example.org")
+        email_api = os.getenv("EMAIL_API", "")
+        
+        if not email_api:
+            return jsonify({
+                "error": "Email API key not configured",
+                "note": "Set EMAIL_API environment variable"
+            }), 500
+        
+        # Send email via Mailtrap
+        mail = mt.Mail(
+            sender=mt.Address(email=email_sender, name="Crowd Counter API"),
+            to=[mt.Address(email=receiver)],
+            subject=subject,
+            text=message,
+            category="API Notification"
+        )
+        
+        client = mt.MailtrapClient(token=email_api)
+        response = client.send(mail)
+        
+        logger.info(f"Email sent successfully to {receiver}")
+        return jsonify({
+            "message": f"Email sent successfully to {receiver}",
+            "subject": subject,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to send email: {str(e)}")
+        return jsonify({
+            "error": f"Failed to send email: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route("/update", methods=["GET"])
 def update_from_git():
@@ -228,6 +288,95 @@ def update_from_git():
             "timestamp": datetime.now().isoformat()
         }), 500
 
+@app.route("/db/update", methods=["POST"])
+def update_database():
+    """Update database table with provided data"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "error": "Missing request body",
+                "example": {
+                    "table": "crowd_counts",
+                    "data": {
+                        "preset_id": 1,
+                        "count": 25,
+                        "timestamp": "2025-11-09T10:00:00"
+                    }
+                }
+            }), 400
+        
+        table_name = data.get('table', 'crowd_counts')
+        record_data = data.get('data', {})
+        
+        if not record_data:
+            return jsonify({
+                "error": "Missing 'data' field in request body"
+            }), 400
+        
+        # Get database configuration from environment
+        db_path = os.getenv("DATABASE_PATH", "/app/crowd_counter.db")
+        
+        # Connect to SQLite database
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Create table if it doesn't exist (basic schema)
+        cursor.execute(f'''
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                preset_id INTEGER,
+                count INTEGER,
+                timestamp TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Prepare insert statement
+        columns = ', '.join(record_data.keys())
+        placeholders = ', '.join(['?' for _ in record_data])
+        values = list(record_data.values())
+        
+        # Add created_at if not provided
+        if 'created_at' not in record_data:
+            columns += ', created_at'
+            placeholders += ', ?'
+            values.append(datetime.now().isoformat())
+        
+        cursor.execute(f'''
+            INSERT INTO {table_name} ({columns})
+            VALUES ({placeholders})
+        ''', values)
+        
+        # Get the ID of the inserted record
+        record_id = cursor.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Database record inserted into {table_name} with ID {record_id}")
+        return jsonify({
+            "message": f"Record inserted successfully into {table_name}",
+            "record_id": record_id,
+            "table": table_name,
+            "data": record_data,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except sqlite3.Error as e:
+        logger.error(f"Database error: {str(e)}")
+        return jsonify({
+            "error": f"Database error: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+    except Exception as e:
+        logger.error(f"Failed to update database: {str(e)}")
+        return jsonify({
+            "error": f"Failed to update database: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8000"))
     debug = os.getenv("API_DEBUG", "false").lower() == "true"
@@ -238,6 +387,8 @@ if __name__ == "__main__":
     logger.info("  GET  /health   - Health check")
     logger.info("  GET  /start    - Start crowd counting")
     logger.info("  GET  /trigger  - Start crowd counting (alias)")
+    logger.info("  POST /email    - Send email with custom receiver")
+    logger.info("  POST /db/update - Update database table")
     logger.info("  GET  /update   - Update from GitHub")
     logger.info("  GET  /status   - Process status")
     logger.info("  GET  /logs     - Process logs")

@@ -55,6 +55,9 @@ ENV EMAIL_SENDER=no-reply@example.org
 ENV EMAIL_RECEIVER=user@example.org
 ENV EMAIL_API=your_api_key_here
 
+# Database Configuration
+ENV DATABASE_PATH=/app/crowd_counter.db
+
 # API Configuration
 ENV API_PORT=8000
 ENV API_DEBUG=false

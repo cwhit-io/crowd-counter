@@ -45,6 +45,7 @@ Environment variables can be set in a `.env` file or directly in your system. Be
 - `EMAIL_RECEIVER`: Receiver email address for results (default: none, must be set)
 - `EMAIL_API`: Mailtrap API token (default: none, must be set)
 - `PRESET_CONFIG_FILE`: Path to preset configuration JSON file (default: `preset_config.json`)
+- `DATABASE_PATH`: Path to SQLite database file (default: `/app/crowd_counter.db`)
 
 Example `.env` file:
 
@@ -119,6 +120,8 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /health** - Detailed health check with system status
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
+- **POST /email** - Send email with custom receiver
+- **POST /db/update** - Update database table with data
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
@@ -141,6 +144,16 @@ curl http://localhost:8000/health
 
 # Update from GitHub
 curl http://localhost:8000/update
+
+# Send custom email
+curl -X POST http://localhost:8000/email \
+  -H "Content-Type: application/json" \
+  -d '{"receiver": "user@example.com", "subject": "Test Email", "message": "Hello from API!"}'
+
+# Update database
+curl -X POST http://localhost:8000/db/update \
+  -H "Content-Type: application/json" \
+  -d '{"table": "crowd_counts", "data": {"preset_id": 1, "count": 25}}'
 ```
 
 **Windows (PowerShell):**
@@ -159,6 +172,22 @@ Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
 
 # Update from GitHub  
 Invoke-RestMethod -Uri "http://localhost:8000/update" -Method GET
+
+# Send custom email
+Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
+    receiver = "user@example.com"
+    subject = "Test Email"
+    message = "Hello from API!"
+} | ConvertTo-Json) -ContentType "application/json"
+
+# Update database
+Invoke-RestMethod -Uri "http://localhost:8000/db/update" -Method POST -Body (@{
+    table = "crowd_counts"
+    data = @{
+        preset_id = 1
+        count = 25
+    }
+} | ConvertTo-Json) -ContentType "application/json"
 
 ### Using Docker Compose
 
