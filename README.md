@@ -46,6 +46,7 @@ Environment variables can be set in a `.env` file or directly in your system. Be
 - `EMAIL_API`: Mailtrap API token (default: none, must be set)
 - `PRESET_CONFIG_FILE`: Path to preset configuration JSON file (default: `preset_config.json`)
 - `DATABASE_PATH`: Path to SQLite database file (default: `/app/crowd_counter.db`)
+- `SERVICE_TIME`: Service time for automatic database updates (`9am` or `1045am`, auto-detected if not set)
 
 Example `.env` file:
 
@@ -121,7 +122,7 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
 - **POST /email** - Send crowd counter notification email to specified receiver(s)
-- **POST /db/update** - Update service attendance table with crowd count data
+- **POST /db/update** - Manually update service attendance table (normally automatic)
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
@@ -254,6 +255,22 @@ The application uses SQLite to store service attendance data. The `service_count
 - If a record for the current date doesn't exist, it will be created
 - If a record exists, it will be updated with the new service count
 - Weather and temperature are optional and will update existing records
+
+## Automatic Database Updates
+
+The crowd counting script automatically updates the service attendance database after each run:
+
+- **Service Detection**: Set `SERVICE_TIME=9am` or `SERVICE_TIME=1045am` in your `.env` file
+- **Auto-Detection**: If not set, the script automatically determines service time based on current hour (< 10am = 9am service, ≥ 10am = 10:45am service)
+- **Daily Records**: Each date gets one record that updates with service counts as they run
+- **Integration**: Database updates happen automatically after crowd counting completes
+
+**Example `.env` configuration:**
+```plaintext
+SERVICE_TIME=9am  # For morning service
+# or
+SERVICE_TIME=1045am  # For later service
+```
 
 ## Logging
 
