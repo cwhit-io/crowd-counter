@@ -78,7 +78,7 @@ The easiest way to run this application is using Docker:
 
 ```bash
 # Pull the image from Docker Hub
-docker pull cwhitio/crowd-counter:v2.6
+docker pull cwhitio/crowd-counter:v2.15
 
 # Run with environment variables
 docker run -d --name crowd-counter \
@@ -89,7 +89,7 @@ docker run -d --name crowd-counter \
   -e EMAIL_API=your_mailtrap_api_token \
   -v ./models:/app/models \
   -v ./output:/app/output \
-  cwhitio/crowd-counter:v2.6
+  cwhitio/crowd-counter:v2.15
 
 # The container starts with an API server automatically
 # Access the web API at http://localhost:8000
@@ -204,7 +204,7 @@ Create a `docker-compose.yml` file:
 version: '3.8'
 services:
   crowd-counter:
-    image: cwhitio/crowd-counter:v2.6
+    image: cwhitio/crowd-counter:v2.15
     container_name: crowd-counter
     environment:
       - CAMERA_IP=192.168.1.100
@@ -269,7 +269,7 @@ Logs are saved to `ptz_capture.log` in the project directory and also printed to
 
 ## Docker
 
-This application is available as a Docker image on Docker Hub: `cwhitio/crowd-counter:v2.6`
+This application is available as a Docker image on Docker Hub: `cwhitio/crowd-counter:v2.15`
 
 ### Image Details
 - **Base**: Ultralytics/ultralytics:latest-cpu (optimized ML environment)
@@ -277,7 +277,7 @@ This application is available as a Docker image on Docker Hub: `cwhitio/crowd-co
 - **Includes**: All dependencies + pre-trained YOLO model from CDN
 - **Architecture**: CPU-only (no GPU required)
 - **Updates**: Automatically pulls latest code from GitHub during build
-- **Latest Version**: v2.6 (includes enhanced email API with multiple receivers and database integration)
+- **Latest Version**: v2.15 (includes automatic database updates and enhanced email API)
 
 ### Building Locally
 ```bash
