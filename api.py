@@ -192,14 +192,13 @@ def send_custom_email():
             return jsonify({
                 "error": "No receivers specified. Set EMAIL_RECEIVER in environment or pass 'receiver' in request body",
                 "example": {
-                    "receiver": "user@example.com,user2@example.com",
-                    "subject": "Custom Subject (optional)",
-                    "message": "Custom message (optional)"
+                    "receiver": "user@example.com,user2@example.com"
                 }
             }), 400
         
-        subject = data.get('subject', 'Crowd Counter Notification') if data else 'Crowd Counter Notification'
-        message = data.get('message', 'This is a notification from the Crowd Counter API.') if data else 'This is a notification from the Crowd Counter API.'
+        # Fixed subject and message for crowd counter notifications
+        subject = "Crowd Counter Notification"
+        message = "This is a notification from the Crowd Counter API. The crowd counting process has completed."
         
         # Get email configuration from environment
         email_sender = os.getenv("EMAIL_SENDER", "no-reply@example.org")
@@ -230,7 +229,6 @@ def send_custom_email():
         return jsonify({
             "message": f"Email sent successfully to {len(receivers)} recipient(s)",
             "recipients": receivers,
-            "subject": subject,
             "timestamp": datetime.now().isoformat()
         })
         

@@ -120,7 +120,7 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /health** - Detailed health check with system status
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
-- **POST /email** - Send email with custom receiver(s) or default from .env
+- **POST /email** - Send crowd counter notification email to specified receiver(s)
 - **POST /db/update** - Update database table with data
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
@@ -148,12 +148,12 @@ curl http://localhost:8000/update
 # Send custom email
 curl -X POST http://localhost:8000/email \
   -H "Content-Type: application/json" \
-  -d '{"receiver": "user@example.com,user2@example.com", "subject": "Test Email", "message": "Hello from API!"}'
+  -d '{"receiver": "user@example.com,user2@example.com"}'
 
 # Send email to default receivers (from .env EMAIL_RECEIVER)
 curl -X POST http://localhost:8000/email \
   -H "Content-Type: application/json" \
-  -d '{"subject": "Test Email", "message": "Hello from API!"}'
+  -d '{}'
 
 # Update database
 curl -X POST http://localhost:8000/db/update \
@@ -181,14 +181,10 @@ Invoke-RestMethod -Uri "http://localhost:8000/update" -Method GET
 # Send custom email
 Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
     receiver = "user@example.com,user2@example.com"
-    subject = "Test Email"
-    message = "Hello from API!"
 } | ConvertTo-Json) -ContentType "application/json"
 
 # Send email to default receivers (from .env EMAIL_RECEIVER)
 Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
-    subject = "Test Email"
-    message = "Hello from API!"
 } | ConvertTo-Json) -ContentType "application/json"
 
 # Update database
