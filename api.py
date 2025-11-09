@@ -27,6 +27,7 @@ current_process = None
 process_status = "idle"
 last_run = None
 process_output = []
+last_count_result = None  # Store the last crowd count result
 
 def run_crowd_counter():
     """Run the crowd counting script in a separate thread"""
@@ -68,6 +69,20 @@ def run_crowd_counter():
         # Store the output for API access
         process_output = output_lines
         process_output.append(f"Exit code: {return_code}")
+        
+        # Extract total count from output
+        global last_count_result
+        last_count_result = None
+        for line in output_lines:
+            if "total count:" in line:
+                try:
+                    # Extract number after "total count:"
+                    count_part = line.split("total count:")[-1].strip()
+                    last_count_result = int(count_part)
+                    logger.info(f"Extracted total count: {last_count_result}")
+                    break
+                except (ValueError, IndexError):
+                    logger.warning(f"Could not parse count from line: {line}")
             
         if return_code == 0:
             process_status = "completed"
@@ -307,7 +322,7 @@ def update_from_git():
 
 @app.route("/db/update", methods=["POST"])
 def update_database():
-    """Update service attendance table with crowd count data"""
+    """Update service attendance table using the last crowd count result"""
     try:
         data = request.get_json()
         
@@ -315,24 +330,19 @@ def update_database():
             return jsonify({
                 "error": "Missing request body",
                 "example": {
-                    "service": "9am",  # or "1045am"
-                    "count": 150,
-                    "weather": "sunny",  # optional
-                    "temp": 72         # optional
+                    "service": "9am"
                 }
             }), 400
         
-        # Extract parameters
+        # Extract service parameter
         service = data.get('service')
-        count = data.get('count')
         
-        # Validate required parameters
-        if not service or count is None:
+        # Validate service parameter
+        if not service:
             return jsonify({
-                "error": "Missing required parameters: 'service' and 'count' are required",
+                "error": "Missing 'service' parameter",
                 "example": {
-                    "service": "9am",
-                    "count": 150
+                    "service": "9am"
                 }
             }), 400
         
@@ -343,21 +353,18 @@ def update_database():
                 "provided": service
             }), 400
         
-        # Validate count is a number
-        try:
-            count = int(count)
-            if count < 0:
-                raise ValueError("Count must be non-negative")
-        except (ValueError, TypeError):
+        # Get the last count result
+        global last_count_result
+        if last_count_result is None:
             return jsonify({
-                "error": "Count must be a non-negative integer",
-                "provided": count
+                "error": "No crowd count result available. Run /start first to generate a count.",
+                "note": "The database update uses the count from the last successful crowd counting run"
             }), 400
         
-        # Get current date
-        current_date = datetime.now().strftime('%Y-%m-%d')
+        count = last_count_result
         
-        # Get database configuration from environment
+        # Get current date and database path
+        current_date = datetime.now().strftime('%Y-%m-%d')
         db_path = os.getenv("DATABASE_PATH", "/app/crowd_counter.db")
         
         # Connect to SQLite database
@@ -418,7 +425,7 @@ def update_database():
         conn.commit()
         conn.close()
         
-        logger.info(f"Service count {action} for {service} service: {count} attendees on {current_date}")
+        logger.info(f"Database record {action} for {service} service: {count} attendees on {current_date}")
         return jsonify({
             "message": f"Service count {action} successfully",
             "record_id": record_id,
