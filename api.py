@@ -336,6 +336,7 @@ def update_database():
         
         # Extract service parameter
         service = data.get('service')
+        count = data.get('count')  # Allow count to be passed for testing
         
         # Validate service parameter
         if not service:
@@ -353,11 +354,14 @@ def update_database():
                 "provided": service
             }), 400
         
-        # Get the last count result
+        # Get the last count result, or use provided count for testing
         global last_count_result
-        if last_count_result is None:
+        if count is not None:
+            # Use provided count for testing
+            last_count_result = count
+        elif last_count_result is None:
             return jsonify({
-                "error": "No crowd count result available. Run /start first to generate a count.",
+                "error": "No crowd count result available. Run /start first to generate a count, or provide 'count' parameter for testing.",
                 "note": "The database update uses the count from the last successful crowd counting run"
             }), 400
         
