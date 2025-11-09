@@ -5,7 +5,6 @@ import logging
 import os
 import shutil
 import socket
-import sqlite3
 import sys
 import time
 import zipfile
@@ -463,99 +462,6 @@ def send_email(zip_path, run_id, total_count):
 
 
 # ---------------------------------------------------------------------------
-# Database Update Function
-# ---------------------------------------------------------------------------
-def update_service_count(total_count, service_time=None):
-    """Update the service attendance database with the total count"""
-    try:
-        # Determine service time if not provided
-        if not service_time:
-            service_time = os.getenv("SERVICE_TIME", "").lower().strip()
-            if not service_time:
-                # Auto-determine based on current time (9am service before 10am, 1045am service after 10am)
-                current_hour = datetime.now().hour
-                if current_hour < 10:
-                    service_time = "9am"
-                else:
-                    service_time = "1045am"
-                logger.info(f"Auto-determined service time: {service_time} (current hour: {current_hour})")
-            else:
-                logger.info(f"Using configured service time: {service_time}")
-
-        # Validate service time
-        if service_time not in ['9am', '1045am']:
-            logger.error(f"Invalid service time: {service_time}. Must be '9am' or '1045am'")
-            return False
-
-        # Get current date and database path
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        db_path = os.getenv("DATABASE_PATH", "/app/crowd_counter.db")
-
-        # Connect to database
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Create table if it doesn't exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS service_counts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                weather TEXT,
-                temp REAL,
-                service_9am_sanctuary INTEGER,
-                service_1045am_sanctuary INTEGER,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date)
-            )
-        ''')
-
-        # Check if record for today exists
-        cursor.execute('SELECT id FROM service_counts WHERE date = ?', (current_date,))
-        existing_record = cursor.fetchone()
-
-        if existing_record:
-            # Update existing record
-            if service_time == '9am':
-                cursor.execute('''
-                    UPDATE service_counts
-                    SET service_9am_sanctuary = ?
-                    WHERE date = ?
-                ''', (total_count, current_date))
-            else:  # 1045am
-                cursor.execute('''
-                    UPDATE service_counts
-                    SET service_1045am_sanctuary = ?
-                    WHERE date = ?
-                ''', (total_count, current_date))
-
-            action = "updated"
-        else:
-            # Insert new record
-            if service_time == '9am':
-                cursor.execute('''
-                    INSERT INTO service_counts (date, service_9am_sanctuary)
-                    VALUES (?, ?)
-                ''', (current_date, total_count))
-            else:  # 1045am
-                cursor.execute('''
-                    INSERT INTO service_counts (date, service_1045am_sanctuary)
-                    VALUES (?, ?)
-                ''', (current_date, total_count))
-
-            action = "inserted"
-
-        conn.commit()
-        conn.close()
-
-        logger.info(f"✅ Service count {action} for {service_time} service: {total_count} attendees on {current_date}")
-        return True
-
-    except Exception as e:
-        logger.error(f"❌ Failed to update service count in database: {str(e)}")
-        return False
-
-
-# ---------------------------------------------------------------------------
 # Main Orchestration
 # ---------------------------------------------------------------------------
 def main():
@@ -637,13 +543,6 @@ def main():
 
     logger.info(f"Results saved to {csv_path} with total count: {total_count}")
     logger.info(f"Processing complete. Captured: {len(captured_images)}, Failed: {len(failed_presets)}")
-
-    # Update database with service attendance count
-    db_updated = update_service_count(total_count)
-    if db_updated:
-        logger.info("✅ Service attendance count successfully saved to database")
-    else:
-        logger.warning("⚠️ Failed to save service attendance count to database")
 
     raw_dir = os.path.join(output_dir, "raw_images")
     if os.path.exists(raw_dir):

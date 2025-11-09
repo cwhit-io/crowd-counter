@@ -325,8 +325,6 @@ def update_database():
         # Extract parameters
         service = data.get('service')
         count = data.get('count')
-        weather = data.get('weather')
-        temp = data.get('temp')
         
         # Validate required parameters
         if not service or count is None:
@@ -389,15 +387,15 @@ def update_database():
             if service == '9am':
                 cursor.execute('''
                     UPDATE service_counts 
-                    SET service_9am_sanctuary = ?, weather = ?, temp = ?
+                    SET service_9am_sanctuary = ?
                     WHERE date = ?
-                ''', (count, weather, temp, current_date))
+                ''', (count, current_date))
             else:  # 1045am
                 cursor.execute('''
                     UPDATE service_counts 
-                    SET service_1045am_sanctuary = ?, weather = ?, temp = ?
+                    SET service_1045am_sanctuary = ?
                     WHERE date = ?
-                ''', (count, weather, temp, current_date))
+                ''', (count, current_date))
             
             record_id = existing_record[0]
             action = "updated"
@@ -405,14 +403,14 @@ def update_database():
             # Insert new record
             if service == '9am':
                 cursor.execute('''
-                    INSERT INTO service_counts (date, weather, temp, service_9am_sanctuary)
-                    VALUES (?, ?, ?, ?)
-                ''', (current_date, weather, temp, count))
+                    INSERT INTO service_counts (date, service_9am_sanctuary)
+                    VALUES (?, ?)
+                ''', (current_date, count))
             else:  # 1045am
                 cursor.execute('''
-                    INSERT INTO service_counts (date, weather, temp, service_1045am_sanctuary)
-                    VALUES (?, ?, ?, ?)
-                ''', (current_date, weather, temp, count))
+                    INSERT INTO service_counts (date, service_1045am_sanctuary)
+                    VALUES (?, ?)
+                ''', (current_date, count))
             
             record_id = cursor.lastrowid
             action = "inserted"
@@ -427,8 +425,6 @@ def update_database():
             "date": current_date,
             "service": service,
             "count": count,
-            "weather": weather,
-            "temp": temp,
             "timestamp": datetime.now().isoformat()
         })
         

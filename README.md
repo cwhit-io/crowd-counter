@@ -46,7 +46,6 @@ Environment variables can be set in a `.env` file or directly in your system. Be
 - `EMAIL_API`: Mailtrap API token (default: none, must be set)
 - `PRESET_CONFIG_FILE`: Path to preset configuration JSON file (default: `preset_config.json`)
 - `DATABASE_PATH`: Path to SQLite database file (default: `/app/crowd_counter.db`)
-- `SERVICE_TIME`: Service time for automatic database updates (`9am` or `1045am`, auto-detected if not set)
 
 Example `.env` file:
 
@@ -159,7 +158,7 @@ curl -X POST http://localhost:8000/email \
 # Update database
 curl -X POST http://localhost:8000/db/update \
   -H "Content-Type: application/json" \
-  -d '{"service": "9am", "count": 150, "weather": "sunny", "temp": 72}'
+  -d '{"service": "9am", "count": 150}'
 ```
 
 **Windows (PowerShell):**
@@ -192,8 +191,6 @@ Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
 Invoke-RestMethod -Uri "http://localhost:8000/db/update" -Method POST -Body (@{
     service = "9am"
     count = 150
-    weather = "sunny"
-    temp = 72
 } | ConvertTo-Json) -ContentType "application/json"
 
 ### Using Docker Compose
@@ -255,22 +252,6 @@ The application uses SQLite to store service attendance data. The `service_count
 - If a record for the current date doesn't exist, it will be created
 - If a record exists, it will be updated with the new service count
 - Weather and temperature are optional and will update existing records
-
-## Automatic Database Updates
-
-The crowd counting script automatically updates the service attendance database after each run:
-
-- **Service Detection**: Set `SERVICE_TIME=9am` or `SERVICE_TIME=1045am` in your `.env` file
-- **Auto-Detection**: If not set, the script automatically determines service time based on current hour (< 10am = 9am service, ≥ 10am = 10:45am service)
-- **Daily Records**: Each date gets one record that updates with service counts as they run
-- **Integration**: Database updates happen automatically after crowd counting completes
-
-**Example `.env` configuration:**
-```plaintext
-SERVICE_TIME=9am  # For morning service
-# or
-SERVICE_TIME=1045am  # For later service
-```
 
 ## Logging
 
