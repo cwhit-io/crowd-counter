@@ -121,7 +121,7 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
 - **POST /email** - Send crowd counter notification email to specified receiver(s)
-- **POST /db/update** - Update service attendance table using count from last /start run
+- **POST /db/update** - Run crowd counting and update service attendance table
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
@@ -155,12 +155,10 @@ curl -X POST http://localhost:8000/email \
   -H "Content-Type: application/json" \
   -d '{}'
 
-# Update database
+# Update database (runs crowd counting internally)
 curl -X POST http://localhost:8000/db/update \
   -H "Content-Type: application/json" \
   -d '{"service": "9am"}'
-
-# Note: /db/update uses the count from the last successful /start run
 ```
 
 **Windows (PowerShell):**
@@ -189,12 +187,10 @@ Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
 Invoke-RestMethod -Uri "http://localhost:8000/email" -Method POST -Body (@{
 } | ConvertTo-Json) -ContentType "application/json"
 
-# Update database
+# Update database (runs crowd counting internally)
 Invoke-RestMethod -Uri "http://localhost:8000/db/update" -Method POST -Body (@{
     service = "9am"
 } | ConvertTo-Json) -ContentType "application/json"
-
-# Note: /db/update uses the count from the last successful /start run
 
 ### Using Docker Compose
 

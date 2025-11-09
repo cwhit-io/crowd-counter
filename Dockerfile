@@ -17,11 +17,9 @@ RUN pip install --no-cache-dir \
 # Set working directory
 WORKDIR /app
 
-# Clone the latest code from GitHub
-RUN git clone https://github.com/cwhit-io/crowd-counter.git /tmp/repo && \
-    cp -r /tmp/repo/* /app/ && \
-    rm -rf /tmp/repo && \
-    chmod +x /app/*.sh /app/*.py 2>/dev/null || true
+# Copy local code files
+COPY . /app/
+RUN chmod +x /app/*.sh /app/*.py 2>/dev/null || true
 
 # Create directories for output and models
 RUN mkdir -p /app/output /app/data /app/models

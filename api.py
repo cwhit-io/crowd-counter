@@ -29,8 +29,60 @@ last_run = None
 process_output = []
 last_count_result = None  # Store the last crowd count result
 
+def run_crowd_counter_and_get_count():
+    """Run the crowd counting script and return the total count"""
+    try:
+        logger.info("Starting crowd counting process for database update...")
+        
+        # Run the main script and capture output
+        process = subprocess.Popen(
+            [sys.executable, "run.py"],
+            cwd="/app",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            universal_newlines=True
+        )
+        
+        # Collect all output
+        output_lines = []
+        while True:
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                output_line = output.strip()
+                print(f"[CROWD-COUNTER] {output_line}")
+                logger.info(f"run.py: {output_line}")
+                output_lines.append(output_line)
+        
+        # Wait for process to complete
+        return_code = process.wait()
+        
+        if return_code != 0:
+            raise Exception(f"Crowd counting failed with exit code {return_code}")
+        
+        # Extract total count from output
+        for line in output_lines:
+            if "total count:" in line:
+                try:
+                    count_part = line.split("total count:")[-1].strip()
+                    count = int(count_part)
+                    logger.info(f"Extracted total count: {count}")
+                    return count
+                except (ValueError, IndexError):
+                    logger.warning(f"Could not parse count from line: {line}")
+        
+        raise Exception("Could not find total count in output")
+        
+    except Exception as e:
+        logger.error(f"Failed to run crowd counter: {str(e)}")
+        raise e
+
+
 def run_crowd_counter():
-    """Run the crowd counting script in a separate thread"""
+    """Run the crowd counting script in a separate thread (legacy function for /start endpoint)"""
     global current_process, process_status, last_run, process_output
     
     try:
@@ -322,7 +374,7 @@ def update_from_git():
 
 @app.route("/db/update", methods=["POST"])
 def update_database():
-    """Update service attendance table using the last crowd count result"""
+    """Run crowd counting and update service attendance table"""
     try:
         data = request.get_json()
         
@@ -336,7 +388,6 @@ def update_database():
         
         # Extract service parameter
         service = data.get('service')
-        count = data.get('count')  # Allow count to be passed for testing
         
         # Validate service parameter
         if not service:
@@ -354,18 +405,14 @@ def update_database():
                 "provided": service
             }), 400
         
-        # Get the last count result, or use provided count for testing
-        global last_count_result
-        if count is not None:
-            # Use provided count for testing
-            last_count_result = count
-        elif last_count_result is None:
+        # Run crowd counting to get the current count
+        try:
+            count = run_crowd_counter_and_get_count()
+        except Exception as e:
             return jsonify({
-                "error": "No crowd count result available. Run /start first to generate a count, or provide 'count' parameter for testing.",
-                "note": "The database update uses the count from the last successful crowd counting run"
-            }), 400
-        
-        count = last_count_result
+                "error": f"Failed to run crowd counting: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }), 500
         
         # Get current date and database path
         current_date = datetime.now().strftime('%Y-%m-%d')
