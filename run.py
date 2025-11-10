@@ -17,6 +17,7 @@ import requests
 from sklearn.cluster import DBSCAN
 from ultralytics import YOLO
 import mailtrap as mt
+import argparse
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -389,11 +390,13 @@ def create_zip_file(output_dir, run_id, annotated_dir, csv_path):
 # ---------------------------------------------------------------------------
 # Email Sending
 # ---------------------------------------------------------------------------
-def send_email(zip_path, run_id, total_count):
+def send_email(zip_path, run_id, total_count, receivers=None):
     """
     Send email with zip attachment via Mailtrap.
     Attachment content is base64 encoded.
     """
+    if receivers is None:
+        receivers = EMAIL_RECEIVER
     logger.info(f"Preparing email with attachment via Mailtrap: {zip_path}")
 
     run_datetime = datetime.strptime(run_id, "%Y%m%d_%H%M%S").strftime("%B %d, %Y at %I:%M %p")
@@ -426,7 +429,7 @@ def send_email(zip_path, run_id, total_count):
         logger.info("Successfully encoded zip content to base64")
 
         # Handle multiple email recipients separated by commas
-        email_recipients = [email.strip() for email in EMAIL_RECEIVER.split(',') if email.strip()]
+        email_recipients = [email.strip() for email in receivers.split(',') if email.strip()]
         recipient_addresses = [mt.Address(email=email) for email in email_recipients]
         
         # Format date for subject line
@@ -465,6 +468,11 @@ def send_email(zip_path, run_id, total_count):
 # Main Orchestration
 # ---------------------------------------------------------------------------
 def main():
+    parser = argparse.ArgumentParser(description='PTZ Crowd Counter')
+    parser.add_argument('--send-email', action='store_true', help='Send email with results')
+    parser.add_argument('--email-receivers', help='Comma-separated list of email receivers, overrides EMAIL_RECEIVER')
+    args = parser.parse_args()
+
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.join(OUTPUT_BASE_DIR, f"run_{run_id}")
     os.makedirs(output_dir, exist_ok=True)
@@ -553,11 +561,14 @@ def main():
     if os.path.exists(annotated_dir):
         zip_path = create_zip_file(output_dir, run_id, annotated_dir, csv_path)
         if zip_path:
-            sent = send_email(zip_path, run_id, total_count)
-            if sent:
-                logger.info("Results successfully zipped and emailed")
+            if args.send_email:
+                sent = send_email(zip_path, run_id, total_count, args.email_receivers)
+                if sent:
+                    logger.info("Results successfully zipped and emailed")
+                else:
+                    logger.error("Failed to send email with results")
             else:
-                logger.error("Failed to send email with results")
+                logger.info("Email sending disabled. Results zipped but not emailed.")
     else:
         logger.warning("No annotated images directory found, skipping zip and email")
 
