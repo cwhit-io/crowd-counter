@@ -10,7 +10,7 @@ import json
 import subprocess
 import threading
 import time
-import sqlite3
+import psycopg2
 from datetime import datetime
 from flask import Flask, jsonify, request
 import logging
@@ -29,22 +29,31 @@ last_run = None
 process_output = []
 last_count_result = None  # Store the last crowd count result
 
-def run_crowd_counter_and_get_count():
+def run_crowd_counter_and_get_count(hour=None, send_email=False, email_receivers=None):
     """Run the crowd counting script and return the total count"""
     try:
         logger.info("Starting crowd counting process for database update...")
-        
+
+        # Build command arguments
+        cmd = [sys.executable, "src/main.py"]
+        if hour:
+            cmd.extend(["--hour", hour])
+        if send_email:
+            cmd.append("--send-email")
+        if email_receivers:
+            cmd.extend(["--email-receivers", email_receivers])
+
         # Run the main script and capture output
         process = subprocess.Popen(
-            [sys.executable, "run.py"],
-            cwd="/app",
+            cmd,
+            cwd=os.getcwd(),  # Use current working directory
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
             universal_newlines=True
         )
-        
+
         # Collect all output
         output_lines = []
         while True:
@@ -54,55 +63,64 @@ def run_crowd_counter_and_get_count():
             if output:
                 output_line = output.strip()
                 print(f"[CROWD-COUNTER] {output_line}")
-                logger.info(f"run.py: {output_line}")
+                logger.info(f"main.py: {output_line}")
                 output_lines.append(output_line)
-        
+
         # Wait for process to complete
         return_code = process.wait()
-        
+
         if return_code != 0:
             raise Exception(f"Crowd counting failed with exit code {return_code}")
-        
-        # Extract total count from output
+
+        # Extract total count from output (look for "Total people counted: X")
         for line in output_lines:
-            if "total count:" in line:
+            if "Total people counted:" in line:
                 try:
-                    count_part = line.split("total count:")[-1].strip()
+                    count_part = line.split("Total people counted:")[-1].strip()
                     count = int(count_part)
                     logger.info(f"Extracted total count: {count}")
                     return count
                 except (ValueError, IndexError):
                     logger.warning(f"Could not parse count from line: {line}")
-        
+
         raise Exception("Could not find total count in output")
-        
+
     except Exception as e:
         logger.error(f"Failed to run crowd counter: {str(e)}")
         raise e
 
 
-def run_crowd_counter():
-    """Run the crowd counting script in a separate thread (legacy function for /start endpoint)"""
+def run_crowd_counter(hour=None, send_email=False, email_receivers=None):
+    """Run the crowd counting script in a separate thread"""
     global current_process, process_status, last_run, process_output
-    
+
     try:
         process_status = "running"
         last_run = datetime.now().isoformat()
         process_output = []
-        
+
         logger.info("Starting crowd counting process...")
-        
+
+        # Build command arguments
+        cmd = [sys.executable, "src/main.py"]
+        if hour:
+            cmd.extend(["--hour", hour])
+        if send_email:
+            cmd.append("--send-email")
+        if email_receivers:
+            cmd.extend(["--email-receivers", email_receivers])
+
         # Run the main script with real-time output streaming
         current_process = subprocess.Popen(
-            [sys.executable, "run.py"],
-            cwd="/app",
+            cmd,
+            cwd=os.getcwd(),  # Use current working directory
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,  # Line buffered
             universal_newlines=True
         )
-        
+
         # Stream output in real-time
         output_lines = []
         while True:
@@ -111,38 +129,38 @@ def run_crowd_counter():
                 break
             if output:
                 output_line = output.strip()
-                print(f"[CROWD-COUNTER] {output_line}")  # Print to Docker terminal
-                logger.info(f"run.py: {output_line}")     # Also log it
+                print(f"[CROWD-COUNTER] {output_line}")  # Print to terminal
+                logger.info(f"main.py: {output_line}")     # Also log it
                 output_lines.append(output_line)
-        
+
         # Wait for process to complete and get return code
         return_code = current_process.wait()
-        
+
         # Store the output for API access
         process_output = output_lines
         process_output.append(f"Exit code: {return_code}")
-        
+
         # Extract total count from output
         global last_count_result
         last_count_result = None
         for line in output_lines:
-            if "total count:" in line:
+            if "Total people counted:" in line:
                 try:
-                    # Extract number after "total count:"
-                    count_part = line.split("total count:")[-1].strip()
+                    # Extract number after "Total people counted:"
+                    count_part = line.split("Total people counted:")[-1].strip()
                     last_count_result = int(count_part)
                     logger.info(f"Extracted total count: {last_count_result}")
                     break
                 except (ValueError, IndexError):
                     logger.warning(f"Could not parse count from line: {line}")
-            
+
         if return_code == 0:
             process_status = "completed"
             logger.info("Crowd counting completed successfully")
         else:
             process_status = "failed"
             logger.error(f"Crowd counting failed with code {return_code}")
-            
+
     except subprocess.TimeoutExpired:
         if current_process:
             current_process.kill()
@@ -163,7 +181,7 @@ def home():
     return jsonify({
         "service": "crowd-counter-api",
         "status": "healthy",
-        "version": "1.0",
+        "version": "2.0",
         "endpoints": {
             "/start": "GET - Start crowd counting",
             "/status": "GET - Check process status",
@@ -171,7 +189,9 @@ def home():
             "/health": "GET - Health check",
             "/update": "GET - Update from GitHub",
             "/email": "POST - Send email with custom receiver(s) or default from .env",
-            "/db/update": "POST - Update database table"
+            "/db/update": "POST - Run crowd counting and update PostgreSQL attendance table",
+            "/count": "GET - Get last count result",
+            "/run": "POST - Run crowd counting with options"
         }
     })
 
@@ -228,10 +248,67 @@ def get_logs():
         "timestamp": datetime.now().isoformat()
     })
 
-@app.route("/trigger", methods=["GET"])
-def trigger_counting():
-    """Alternative endpoint name for starting process"""
-    return start_crowd_counting()
+@app.route("/count")
+def get_last_count():
+    """Get the last crowd count result"""
+    return jsonify({
+        "last_count": last_count_result,
+        "last_run": last_run,
+        "process_status": process_status,
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route("/run", methods=["POST"])
+def run_with_options():
+    """Run crowd counting with custom options"""
+    global current_process, process_status
+
+    if process_status == "running":
+        return jsonify({
+            "error": "Process already running",
+            "status": process_status,
+            "started_at": last_run
+        }), 409
+
+    try:
+        data = request.get_json() or {}
+
+        # Extract options
+        hour = data.get('hour')
+        send_email = data.get('send_email', False)
+        email_receivers = data.get('email_receivers')
+
+        # Validate hour if provided
+        if hour and hour not in ['9am', '1045am']:
+            return jsonify({
+                "error": "Invalid hour. Must be '9am' or '1045am'",
+                "provided": hour
+            }), 400
+
+        # Start the process in a separate thread with options
+        thread = threading.Thread(
+            target=run_crowd_counter,
+            args=(hour, send_email, email_receivers)
+        )
+        thread.daemon = True
+        thread.start()
+
+        return jsonify({
+            "message": "Crowd counting started with options",
+            "options": {
+                "hour": hour,
+                "send_email": send_email,
+                "email_receivers": email_receivers
+            },
+            "status": "running",
+            "started_at": datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        return jsonify({
+            "error": f"Failed to start process: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 @app.route("/email", methods=["POST"])
 def send_custom_email():
@@ -374,10 +451,10 @@ def update_from_git():
 
 @app.route("/db/update", methods=["POST"])
 def update_database():
-    """Run crowd counting and update service attendance table"""
+    """Run crowd counting and update PostgreSQL attendance table"""
     try:
         data = request.get_json()
-        
+
         if not data:
             return jsonify({
                 "error": "Missing request body",
@@ -385,10 +462,10 @@ def update_database():
                     "service": "9am"
                 }
             }), 400
-        
+
         # Extract service parameter
         service = data.get('service')
-        
+
         # Validate service parameter
         if not service:
             return jsonify({
@@ -397,96 +474,95 @@ def update_database():
                     "service": "9am"
                 }
             }), 400
-        
+
         # Validate service type
         if service not in ['9am', '1045am']:
             return jsonify({
                 "error": "Invalid service. Must be '9am' or '1045am'",
                 "provided": service
             }), 400
-        
+
         # Run crowd counting to get the current count
         try:
-            count = run_crowd_counter_and_get_count()
+            count = run_crowd_counter_and_get_count(hour=service)
         except Exception as e:
             return jsonify({
                 "error": f"Failed to run crowd counting: {str(e)}",
                 "timestamp": datetime.now().isoformat()
             }), 500
-        
-        # Get current date and database path
-        current_date = datetime.now().strftime('%Y-%m-%d')
-        db_path = os.getenv("DATABASE_PATH", "/app/crowd_counter.db")
-        
-        # Connect to SQLite database
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Create table if it doesn't exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS service_counts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                weather TEXT,
-                temp REAL,
-                service_9am_sanctuary INTEGER,
-                service_1045am_sanctuary INTEGER,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(date)
+
+        # Get database configuration from environment
+        db_config = {
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", "5432")),
+            "name": os.getenv("DB_NAME", "crowd_counter"),
+            "user": os.getenv("DB_USER", "postgres"),
+            "password": os.getenv("DB_PASS", "")
+        }
+
+        # Connect to PostgreSQL database
+        try:
+            conn = psycopg2.connect(
+                host=db_config["host"],
+                port=db_config["port"],
+                database=db_config["name"],
+                user=db_config["user"],
+                password=db_config["password"]
             )
-        ''')
-        
-        # Check if record for today exists
-        cursor.execute('SELECT id FROM service_counts WHERE date = ?', (current_date,))
-        existing_record = cursor.fetchone()
-        
-        if existing_record:
-            # Update existing record
-            if service == '9am':
-                cursor.execute('''
-                    UPDATE service_counts 
-                    SET service_9am_sanctuary = ?
-                    WHERE date = ?
-                ''', (count, current_date))
-            else:  # 1045am
-                cursor.execute('''
-                    UPDATE service_counts 
-                    SET service_1045am_sanctuary = ?
-                    WHERE date = ?
-                ''', (count, current_date))
-            
-            record_id = existing_record[0]
-            action = "updated"
-        else:
-            # Insert new record
-            if service == '9am':
-                cursor.execute('''
-                    INSERT INTO service_counts (date, service_9am_sanctuary)
-                    VALUES (?, ?)
-                ''', (current_date, count))
-            else:  # 1045am
-                cursor.execute('''
-                    INSERT INTO service_counts (date, service_1045am_sanctuary)
-                    VALUES (?, ?)
-                ''', (current_date, count))
-            
-            record_id = cursor.lastrowid
-            action = "inserted"
-        
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Database record {action} for {service} service: {count} attendees on {current_date}")
-        return jsonify({
-            "message": f"Service count {action} successfully",
-            "record_id": record_id,
-            "date": current_date,
-            "service": service,
-            "count": count,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-    except sqlite3.Error as e:
+            cursor = conn.cursor()
+        except Exception as e:
+            return jsonify({
+                "error": f"Database connection failed: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }), 500
+
+        try:
+            # Get current date in MM/DD/YYYY format
+            current_date = datetime.now().strftime('%m/%d/%Y')
+
+            # Check if record for today exists
+            cursor.execute(
+                "SELECT date FROM attendance WHERE date = %s",
+                (current_date,)
+            )
+            existing_record = cursor.fetchone()
+
+            # Determine column name
+            column_name = "service_9am_sanctuary" if service == "9am" else "service_1045am_sanctuary"
+
+            if existing_record:
+                # Update existing record
+                cursor.execute(
+                    f"UPDATE attendance SET {column_name} = %s WHERE date = %s",
+                    (count, current_date)
+                )
+                action = "updated"
+                record_info = f"existing record for {current_date}"
+            else:
+                # Insert new record
+                cursor.execute(
+                    f"INSERT INTO attendance (date, {column_name}) VALUES (%s, %s)",
+                    (current_date, count)
+                )
+                action = "inserted"
+                record_info = f"new record for {current_date}"
+
+            conn.commit()
+
+            logger.info(f"Database record {action} for {service} service: {count} attendees on {current_date}")
+            return jsonify({
+                "message": f"Service count {action} successfully",
+                "date": current_date,
+                "service": service,
+                "count": count,
+                "record_info": record_info,
+                "timestamp": datetime.now().isoformat()
+            })
+
+        finally:
+            conn.close()
+
+    except psycopg2.Error as e:
         logger.error(f"Database error: {str(e)}")
         return jsonify({
             "error": f"Database error: {str(e)}",
@@ -502,17 +578,19 @@ def update_database():
 if __name__ == "__main__":
     port = int(os.getenv("API_PORT", "8000"))
     debug = os.getenv("API_DEBUG", "false").lower() == "true"
-    
+
     logger.info(f"Starting Crowd Counter API on port {port}")
     logger.info("Available endpoints:")
     logger.info("  GET  /         - Service info")
     logger.info("  GET  /health   - Health check")
     logger.info("  GET  /start    - Start crowd counting")
     logger.info("  GET  /trigger  - Start crowd counting (alias)")
+    logger.info("  POST /run      - Run crowd counting with options")
+    logger.info("  GET  /count    - Get last count result")
     logger.info("  POST /email    - Send email with custom receiver")
-    logger.info("  POST /db/update - Update database table")
+    logger.info("  POST /db/update - Run crowd counting and update PostgreSQL attendance table")
     logger.info("  GET  /update   - Update from GitHub")
     logger.info("  GET  /status   - Process status")
     logger.info("  GET  /logs     - Process logs")
-    
+
     app.run(host="0.0.0.0", port=port, debug=debug)

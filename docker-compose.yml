@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   crowd-counter:
-    image: cwhitio/crowd-counter:latest
+    image: cwhitio/crowd-counter:v3.0
     container_name: crowd-counter-app
     restart: unless-stopped
     
@@ -28,6 +28,13 @@ services:
       - EMAIL_SENDER=no-reply@example.org
       - EMAIL_RECEIVER=user@example.org
       - EMAIL_API=your_api_key_here
+      
+      # PostgreSQL Database Configuration
+      - DB_HOST=192.168.96.138
+      - DB_PORT=5432
+      - DB_NAME=blackhawk_analytics
+      - DB_USER=postgres
+      - DB_PASS=your_database_password
       
       # API Configuration
       - API_PORT=8000

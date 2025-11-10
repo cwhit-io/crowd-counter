@@ -12,7 +12,8 @@ RUN pip install --no-cache-dir \
     python-dotenv>=0.19.0 \
     mailtrap>=1.0.0 \
     flask>=2.3.0 \
-    scikit-learn>=1.0.0
+    scikit-learn>=1.0.0 \
+    psycopg2-binary>=2.9.0
 
 # Set working directory
 WORKDIR /app
@@ -53,8 +54,12 @@ ENV EMAIL_SENDER=no-reply@example.org
 ENV EMAIL_RECEIVER=user@example.org
 ENV EMAIL_API=your_api_key_here
 
-# Database Configuration
-ENV DATABASE_PATH=/app/crowd_counter.db
+# PostgreSQL Database Configuration
+ENV DB_HOST=localhost
+ENV DB_PORT=5432
+ENV DB_NAME=crowd_counter
+ENV DB_USER=postgres
+ENV DB_PASS=your_password_here
 
 # API Configuration
 ENV API_PORT=8000

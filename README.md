@@ -12,18 +12,22 @@ This project is designed to control a PTZ (Pan-Tilt-Zoom) camera, capture images
 - **Parallel Processing**: Processes images concurrently using multiprocessing.
 - **Result Compilation**: Saves annotated images and counts to a CSV file.
 - **Email Notification**: Zips results and sends them via email using the Mailtrap API.
+- **PostgreSQL Integration**: Automatically updates attendance records in a PostgreSQL database.
+- **Service Tracking**: Supports tracking attendance for different service times (9am, 10:45am).
 
 ## Requirements
 
 ### Docker (Recommended)
 - Docker installed on your system
 - A PTZ camera accessible over a network with VISCA protocol support
+- PostgreSQL database for attendance tracking
 - **Note**: YOLO model is automatically downloaded from CDN - no manual setup needed!
 
 ### Local Installation
 - Python 3.8 or higher
 - A PTZ camera accessible over a network with VISCA protocol support
-- A trained YOLO model for person detection (e.g., `best.pt`)
+- PostgreSQL database for attendance tracking
+- A trained YOLO model for person detection (e.g., `models/best.pt`)
 - Install dependencies: `pip install -r requirements.txt`
 
 ## Configuration
@@ -45,7 +49,11 @@ Environment variables can be set in a `.env` file or directly in your system. Be
 - `EMAIL_RECEIVER`: Receiver email address for results (default: none, must be set)
 - `EMAIL_API`: Mailtrap API token (default: none, must be set)
 - `PRESET_CONFIG_FILE`: Path to preset configuration JSON file (default: `preset_config.json`)
-- `DATABASE_PATH`: Path to SQLite database file (default: `/app/crowd_counter.db`)
+- `DB_HOST`: PostgreSQL database host (default: `localhost`)
+- `DB_PORT`: PostgreSQL database port (default: `5432`)
+- `DB_NAME`: PostgreSQL database name (default: `crowd_counter`)
+- `DB_USER`: PostgreSQL database username (default: `postgres`)
+- `DB_PASS`: PostgreSQL database password (default: none, must be set)
 
 Example `.env` file:
 
@@ -55,6 +63,37 @@ CAMERA_USER=your_camera_username
 CAMERA_PASS=your_camera_password
 EMAIL_RECEIVER=your_email@example.com
 EMAIL_API=your_mailtrap_api_token
+
+# PostgreSQL Database Configuration
+DB_HOST=192.168.96.138
+DB_PORT=5432
+DB_NAME=blackhawk_analytics
+DB_USER=postgres
+DB_PASS=your_database_password
+```
+
+## Command Line Arguments
+
+The application supports several command-line arguments for flexible operation:
+
+- `--send-email`: Send email notification with results after processing
+- `--email-receivers RECEIVERS`: Comma-separated list of email receivers (overrides EMAIL_RECEIVER)
+- `--hour {9am,1045am}`: Service time for attendance tracking (automatically updates database)
+
+### Examples
+
+```bash
+# Basic run
+python src/main.py
+
+# Run with email notification
+python src/main.py --send-email
+
+# Track 9am service attendance
+python src/main.py --hour 9am
+
+# Full featured run
+python src/main.py --send-email --hour 1045am --email-receivers "admin@example.com,user@example.com"
 ```
 
 ## Preset Configuration
@@ -78,7 +117,7 @@ The easiest way to run this application is using Docker:
 
 ```bash
 # Pull the image from Docker Hub
-docker pull cwhitio/crowd-counter:v2.15
+docker pull cwhitio/crowd-counter:v3.0
 
 # Run with environment variables
 docker run -d --name crowd-counter \
@@ -104,7 +143,13 @@ curl http://localhost:8000/status
 curl http://localhost:8000/logs
 
 # Alternative: Execute directly in container
-docker exec crowd-counter python run.py
+docker exec crowd-counter python src/main.py
+
+# Run with service tracking
+docker exec crowd-counter python src/main.py --hour 9am
+
+# Run with email notification
+docker exec crowd-counter python src/main.py --send-email --hour 1045am
 
 # Update the application from GitHub
 docker exec crowd-counter python update.py
@@ -120,8 +165,10 @@ The application includes a REST API server that starts automatically on port 800
 - **GET /health** - Detailed health check with system status
 - **GET /start** - Start the crowd counting process
 - **GET /trigger** - Alternative endpoint to start counting
+- **POST /run** - Run crowd counting with custom options (hour, email, receivers)
+- **GET /count** - Get the last count result
 - **POST /email** - Send crowd counter notification email to specified receiver(s)
-- **POST /db/update** - Run crowd counting and update service attendance table
+- **POST /db/update** - Run crowd counting and update PostgreSQL attendance table
 - **GET /update** - Update application from GitHub
 - **GET /status** - Check current process status
 - **GET /logs** - Get process logs and output
@@ -159,6 +206,14 @@ curl -X POST http://localhost:8000/email \
 curl -X POST http://localhost:8000/db/update \
   -H "Content-Type: application/json" \
   -d '{"service": "9am"}'
+
+# Run with custom options
+curl -X POST http://localhost:8000/run \
+  -H "Content-Type: application/json" \
+  -d '{"hour": "9am", "send_email": true, "email_receivers": "user@example.com"}'
+
+# Get last count result
+curl http://localhost:8000/count
 ```
 
 **Windows (PowerShell):**
@@ -192,6 +247,16 @@ Invoke-RestMethod -Uri "http://localhost:8000/db/update" -Method POST -Body (@{
     service = "9am"
 } | ConvertTo-Json) -ContentType "application/json"
 
+# Run with custom options
+Invoke-RestMethod -Uri "http://localhost:8000/run" -Method POST -Body (@{
+    hour = "9am"
+    send_email = $true
+    email_receivers = "user@example.com"
+} | ConvertTo-Json) -ContentType "application/json"
+
+# Get last count result
+Invoke-RestMethod -Uri "http://localhost:8000/count" -Method GET
+
 ### Using Docker Compose
 
 Create a `docker-compose.yml` file:
@@ -200,7 +265,7 @@ Create a `docker-compose.yml` file:
 version: '3.8'
 services:
   crowd-counter:
-    image: cwhitio/crowd-counter:v2.15
+    image: cwhitio/crowd-counter:v3.0
     container_name: crowd-counter
     environment:
       - CAMERA_IP=192.168.1.100
@@ -208,6 +273,11 @@ services:
       - CAMERA_PASS=password
       - EMAIL_RECEIVER=your_email@example.com
       - EMAIL_API=your_mailtrap_api_token
+      - DB_HOST=192.168.96.138
+      - DB_PORT=5432
+      - DB_NAME=blackhawk_analytics
+      - DB_USER=postgres
+      - DB_PASS=your_database_password
     volumes:
       - ./models:/app/models
       - ./output:/app/output
@@ -225,32 +295,42 @@ curl http://localhost:8000/start
 Run the script to start capturing and processing images from the camera presets:
 
 ```bash
-python run.py
+# Basic run (no email, no database update)
+python src/main.py
+
+# Run with service tracking (updates database)
+python src/main.py --hour 9am
+
+# Run with email notification
+python src/main.py --send-email --email-receivers "user@example.com"
+
+# Run with both service tracking and email
+python src/main.py --send-email --hour 1045am --email-receivers "user@example.com,user2@example.com"
 ```
 
 - The script will create an output directory with a timestamp (e.g., `output/run_YYYYMMDD_HHMMSS`).
 - Raw images, annotated images, and a CSV file with counts will be generated.
-- Results are zipped and emailed to the configured recipient.
+- Results are zipped and emailed to the configured recipient (if --send-email is used).
+- Attendance data is automatically saved to PostgreSQL (if --hour is specified).
 
 ## Database Schema
 
-The application uses SQLite to store service attendance data. The `service_counts` table has the following structure:
+The application integrates with a PostgreSQL database to store service attendance data. The `attendance` table has the following structure:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | INTEGER | Primary key (auto-increment) |
-| `date` | TEXT | Date of the service (YYYY-MM-DD format) |
+| `date` | TEXT | Date of the service (MM/DD/YYYY format) |
 | `weather` | TEXT | Weather conditions (optional) |
 | `temp` | REAL | Temperature (optional) |
 | `service_9am_sanctuary` | INTEGER | Attendance count for 9:00 AM service |
 | `service_1045am_sanctuary` | INTEGER | Attendance count for 10:45 AM service |
-| `created_at` | TEXT | Record creation timestamp |
 
 **Notes:**
 - Each date can only have one record (UNIQUE constraint on date)
 - If a record for the current date doesn't exist, it will be created
 - If a record exists, it will be updated with the new service count
-- Weather and temperature are optional and will update existing records
+- Weather and temperature are optional and will be NULL for new records
+- The database is automatically updated when using `--hour` argument or the `/db/update` API endpoint
 
 ## Logging
 
@@ -261,6 +341,7 @@ Logs are saved to `ptz_capture.log` in the project directory and also printed to
 - **Camera Connection Issues**: Ensure the camera IP and port are correct, and the camera supports VISCA commands.
 - **Image Capture Failures**: Verify camera credentials and network connectivity.
 - **Email Sending Errors**: Check Mailtrap API token and recipient email configuration.
+- **Database Connection Errors**: Verify PostgreSQL connection settings (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS).
 - **Processing Errors**: Ensure the YOLO model path is correct and the model is trained for person detection.
 
 ## Docker
@@ -273,7 +354,7 @@ This application is available as a Docker image on Docker Hub: `cwhitio/crowd-co
 - **Includes**: All dependencies + pre-trained YOLO model from CDN
 - **Architecture**: CPU-only (no GPU required)
 - **Updates**: Automatically pulls latest code from GitHub during build
-- **Latest Version**: v2.15 (includes automatic database updates and enhanced email API)
+- **Latest Version**: v3.0 (includes PostgreSQL integration, modular architecture, and enhanced API)
 
 ### Building Locally
 ```bash
@@ -287,7 +368,9 @@ docker build -t crowd-counter .
 - **📦 Self-contained**: YOLO model auto-downloaded from CDN
 - **🔄 Always current**: Pulls latest code from GitHub during build
 - **🌐 API-ready**: REST API server included for remote triggering
-- ** Status monitoring**: Real-time process status and logging
+- **📊 Status monitoring**: Real-time process status and logging
+- **🗄️ PostgreSQL Integration**: Automatic attendance tracking in PostgreSQL
+- **⏰ Service Tracking**: Support for multiple service times (9am, 10:45am)
 - **🔧 Easy integration**: Simple HTTP endpoints for automation
 
 ## Contributing
