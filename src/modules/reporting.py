@@ -167,7 +167,7 @@ Hello,
 
 Your PTZ camera capture has completed successfully! Here are the results:
 
-📊 Summary:
+ Summary:
 • Capture completed on: {run_datetime}
 • Total people counted: {total_count}
 

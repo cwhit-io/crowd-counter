@@ -125,18 +125,18 @@ Examples:
     logger.info(f"Capture complete: {len(captured_images)} successful, {len(failed_presets)} failed")
     
     # Queue images for processing
-    logger.info("📤 Queuing images for processing...")
+    logger.info("Queuing images for processing...")
     for image_path in captured_images:
         image_queue.put(image_path)
     
     # Stop workers and collect results
-    logger.info("🔄 Processing images with YOLO model...")
+    logger.info("Processing images with YOLO model...")
     stop_workers(workers, image_queue, num_workers)
     results = collect_results(result_queue)
     logger.info(f"Processing complete: {len(results)} results collected")
     
     # Generate report
-    logger.info("📊 Generating report...")
+    logger.info(" Generating report...")
     report = generate_report(
         output_dir=output_dir,
         run_id=run_id,
@@ -157,7 +157,7 @@ Examples:
         logger.warning("Failed to update attendance database")
     
     # Cleanup raw images
-    logger.info("🧹 Cleaning up temporary files...")
+    logger.info(" Cleaning up temporary files...")
     raw_dir = os.path.join(output_dir, "raw_images")
     if os.path.exists(raw_dir):
         shutil.rmtree(raw_dir, ignore_errors=True)
@@ -166,14 +166,14 @@ Examples:
     # Final summary
     logger.info("=" * 60)
     logger.info(f"Run {run_id} completed successfully!")
-    logger.info(f"📊 Total people counted: {report['total_count']}")
+    logger.info(f" Total people counted: {report['total_count']}")
     logger.info(f"Results CSV: {report['csv_path']}")
     if report['zip_path']:
         logger.info(f"📦 Results ZIP: {report['zip_path']}")
     if report['email_sent']:
-        logger.info(f"📧 Email: Sent successfully")
+        logger.info(f"Email: Sent successfully")
     elif args.send_email:
-        logger.warning(f"⚠️  Email: Failed to send")
+        logger.warning(f"Email: Failed to send")
     logger.info("=" * 60)
 
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        logger.warning("\n⚠️  Process interrupted by user")
+        logger.warning("\n  Process interrupted by user")
         sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Fatal error: {str(e)}", exc_info=True)

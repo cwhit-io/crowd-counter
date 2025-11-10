@@ -287,7 +287,7 @@ docker build -t crowd-counter .
 - **📦 Self-contained**: YOLO model auto-downloaded from CDN
 - **🔄 Always current**: Pulls latest code from GitHub during build
 - **🌐 API-ready**: REST API server included for remote triggering
-- **📊 Status monitoring**: Real-time process status and logging
+- ** Status monitoring**: Real-time process status and logging
 - **🔧 Easy integration**: Simple HTTP endpoints for automation
 
 ## Contributing
